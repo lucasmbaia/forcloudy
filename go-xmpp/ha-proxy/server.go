@@ -6,6 +6,9 @@ import (
   "os/signal"
   "syscall"
   "forcloudy/go-xmpp/ha-proxy/watch"
+  "forcloudy/go-xmpp/ha-proxy/template"
+  "encoding/json"
+  "strings"
   "flag"
   "log"
   "fmt"
@@ -15,6 +18,7 @@ var (
   timeout = flag.Int("timeout", 5, "timeout of connect etcd")
   key = flag.String("key", "/haproxy/", "Key of watch etcd")
   hosts = flag.String("host", "http://172.16.95.183:2379", "Host of etcd")
+  path = flag.String("path", "", "Path to conf ha-proxy")
 )
 
 type InfosApplication struct {
@@ -24,8 +28,22 @@ type InfosApplication struct {
 }
 
 type Hosts struct {
-  PortSRC string   `json:"portSRC,omitempty"`
-  Address []string `json:"address,omitempty"`
+  Protocol  string    `json:"protocol,omitempty"`
+  PortSRC   string    `json:"portSRC,omitempty"`
+  Address   []string  `json:"address,omitempty"`
+  Whitelist string    `json:"-"`
+}
+
+func Whitelist(address []string) string {
+  var addrs string
+
+  for _, v := range address {
+    addrs = fmt.Sprintf("%s%s ", addrs, strings.Split(v, ":")[0])
+  }
+
+  addrs = fmt.Sprintf("%s%s %s %s", addrs, "minion-1", "minion-2", "minion-3")
+  return addrs
+  //return addrs[:len(addrs) - 1]
 }
 
 func main() {
@@ -34,6 +52,7 @@ func main() {
     cancel  context.CancelFunc
     err	    error
     cli	    *watch.Client
+    ia	    InfosApplication
     values  = make(chan watch.WatchInfos)
     sigs    = make(chan os.Signal, 1)
   )
@@ -55,7 +74,22 @@ func main() {
     for {
       infos := <-values
 
+      if err = json.Unmarshal([]byte(infos.Values), &ia); err != nil {
+	log.Printf("Error unmarshal: %s", err.Error())
+	continue
+      }
+
       fmt.Println(infos.Key, infos.Values)
+
+      for key, host := range ia.Hosts {
+	ia.Hosts[key].Whitelist = Whitelist(host.Address)
+      }
+
+      ia.Name = strings.Replace(infos.Key, *key, "", 1)
+      if err = template.ConfGenerate(*path, ia.Name, template.MINION, ia); err != nil {
+	log.Printf("Error to generate conf: %s", err.Error())
+	continue
+      }
     }
   }()
 
