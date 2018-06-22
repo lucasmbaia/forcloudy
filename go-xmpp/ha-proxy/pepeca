@@ -1,14 +1,29 @@
 
+global
+	stats socket /run/haproxy/admin.sock mode 777 level admin expose-fd listeners
+	stats timeout 30s
+	daemon
+	maxconn 2000
+
+
+defaults
+	log 	global
+	mode 	http
+	retries 	3
+	option http-keep-alive
+	option dontlognull
+	timeout connect 5000
+	timeout client 50000
+	timeout server 50000
 
 
 frontend f_pepeca-80
 	bind *:80
 	mode http
-	log /dev/log local10 debug
-	default_backend TransparentBack_pepeca-80
+	log /dev/log local0 debug
 	acl whitelist src 127.0.0.1 127.0.0.2 minion-1 minion-2 minion-3
-	acl pepeca_acl_http hdr(host) -i lucas.com.br
-	use_backend b_pepeca-80 if pepeca_acl_http
+	use_backend b_pepeca-80 if whitelist
+
 
 
 backend b_pepeca-80
@@ -16,6 +31,7 @@ backend b_pepeca-80
 	http-request set-header Host lucas.com.br
 	server application-0 127.0.0.1:80 check
 	server application-1 127.0.0.2:80 check
+
 
 
 frontend f_pepeca-443
@@ -29,7 +45,9 @@ backend b_pepeca-443
 	mode http
 	server application-0 127.0.0.1:443 check
 	server application-1 127.0.0.2:443 check
-	log /dev/log local10 debug
+	log /dev/log local0 debug
+
+
 
 frontend f_pepeca-5340
 	bind *:5340
@@ -37,10 +55,10 @@ frontend f_pepeca-5340
 	use_backend b_pepeca-5340
 
 
+
 backend b_pepeca-5340
 	mode tcp
 	server application-0 127.0.0.1:5340 check
 	server application-1 127.0.0.2:5340 check
 	source 0.0.0.0 usesrc client
-
 

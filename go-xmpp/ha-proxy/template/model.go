@@ -2,6 +2,21 @@ package template
 
 const (
   MINION  = `
+{{"global"}}
+{{printf "\tstats socket /run/haproxy/admin.sock mode 777 level admin expose-fd listeners"}}
+{{printf "\tstats timeout 30s"}}
+{{printf "\tdaemon"}}
+{{printf "\tmaxconn 2000"}}
+{{printf "\n"}}
+{{"defaults"}}
+{{printf "\tlog \tglobal"}}
+{{printf "\tmode \thttp"}}
+{{printf "\tretries \t3"}}
+{{printf "\toption http-keep-alive"}}
+{{printf "\toption dontlognull"}}
+{{printf "\ttimeout connect 5000"}}
+{{printf "\ttimeout client 50000"}}
+{{printf "\ttimeout server 50000"}}
 {{$name := .Name}}
 {{$dns := .Dns}}
 {{range .Hosts -}}
@@ -17,36 +32,41 @@ const (
 {{range $idx, $addr := .Address -}}
 {{printf "\tserver application-%d %s check" $idx $addr}}
 {{end -}}
-{{printf "\tlog /dev/log local10 debug"}}
+{{printf "\tlog /dev/log local0 debug"}}
+{{printf "\n"}}
+
 {{else -}}{{if eq .Protocol "http" -}}
 {{printf "\tbind *:%s" .PortSRC}}
 {{printf "\tmode http"}}
-{{printf "\tlog /dev/log local10 debug"}}
-{{printf "\tdefault_backend TransparentBack_%s-%s" $name .PortSRC}}
+{{printf "\tlog /dev/log local0 debug"}}
 {{printf "\tacl whitelist src %s" .Whitelist}}
-{{printf "\tacl %s_acl_http hdr(host) -i %s" $name $dns}}
-{{printf "\tuse_backend b_%s-%s if %s_acl_http" $name .PortSRC $name}}
+{{printf "\tuse_backend b_%s-%s if whitelist" $name .PortSRC}}
 {{printf "\n"}}
+
 {{printf "backend b_%s-%s" $name .PortSRC}}
 {{printf "\tmode http"}}
 {{printf "\thttp-request set-header Host %s" $dns}}
 {{range $idx, $addr := .Address -}}
 {{printf "\tserver application-%d %s check" $idx $addr}}
 {{end -}}
+{{printf "\n"}}
+
 {{else -}}
 {{printf "\tbind *:%s" .PortSRC}}
 {{printf "\tmode tcp"}}
 {{printf "\tuse_backend b_%s-%s" $name .PortSRC}}
 {{printf "\n"}}
+
 {{printf "backend b_%s-%s" $name .PortSRC}}
 {{printf "\tmode tcp"}}
 {{range $idx, $addr := .Address -}}
 {{printf "\tserver application-%d %s check" $idx $addr}}
 {{end -}}
 {{printf "\tsource 0.0.0.0 usesrc client"}}
-{{end}}
-{{end}}
-{{end}}`
+
+{{end -}}
+{{end -}}
+{{end -}}`
 
   MINION_SERVER = `
 {{"global"}}
@@ -93,7 +113,7 @@ const (
 {{printf "\tserver minion-1 minion-1.com.br:%s check ssl verify none" .PortSRC}}
 {{printf "\tserver minion-2 minion-2.com.br:%s check ssl verify none" .PortSRC}}
 {{printf "\tserver minion-3 minion-3.com.br:%s check ssl verify none" .PortSRC}}
-{{printf "\tlog /dev/log local10 debug"}}
+{{printf "\tlog /dev/log local0 debug"}}
 {{else -}}{{if eq .Protocol "http" -}}
 {{printf "\tbind *:%s" .PortSRC}}
 {{printf "\tmode http"}}
@@ -107,7 +127,7 @@ const (
 {{printf "\tserver minion-1 minion-1.com.br:%s check" .PortSRC}}
 {{printf "\tserver minion-2 minion-2.com.br:%s check" .PortSRC}}
 {{printf "\tserver minion-3 minion-3.com.br:%s check" .PortSRC}}
-{{printf "\tlog /dev/log local10 debug"}}
+{{printf "\tlog /dev/log local0 debug"}}
 {{else -}}
 {{printf "\tbind *:%s" .PortSRC}}
 {{printf "\tmode tcp"}}

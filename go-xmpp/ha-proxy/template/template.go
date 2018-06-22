@@ -21,7 +21,7 @@ func ConfGenerate(path, key, model string, conf interface{}) error {
     }
   }
 
-  if file, err = os.Create(fmt.Sprintf("%s%s", path, key)); err != nil {
+  if file, err = os.Create(fmt.Sprintf("%s%s.cfg", path, key)); err != nil {
     return err
   }
 
