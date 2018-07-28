@@ -18,7 +18,7 @@ var (
   timeout = flag.Int("timeout", 5, "timeout of connect etcd")
   key = flag.String("key", "/haproxy/", "Key of watch etcd")
   hosts = flag.String("host", "http://172.16.95.183:2379", "Host of etcd")
-  path = flag.String("path", "", "Path to conf ha-proxy")
+  path = flag.String("path", "/etc/haproxy/", "Path to conf ha-proxy")
 )
 
 type InfosApplication struct {
@@ -43,7 +43,6 @@ func Whitelist(address []string) string {
 
   addrs = fmt.Sprintf("%s%s %s %s", addrs, "minion-1", "minion-2", "minion-3")
   return addrs
-  //return addrs[:len(addrs) - 1]
 }
 
 func main() {
@@ -86,7 +85,7 @@ func main() {
       }
 
       ia.Name = strings.Replace(infos.Key, *key, "", 1)
-      if err = template.ConfGenerate(*path, ia.Name, template.MINION, ia); err != nil {
+      if err = template.ConfGenerate(*path, ia.Name, template.MINION_SERVER, ia); err != nil {
 	log.Printf("Error to generate conf: %s", err.Error())
 	continue
       }
