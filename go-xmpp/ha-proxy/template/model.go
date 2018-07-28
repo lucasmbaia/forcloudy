@@ -1,7 +1,7 @@
 package template
 
 const (
-  MINION  = `
+	MINION = `
 {{"global"}}
 {{printf "\tstats socket /run/haproxy/admin.sock mode 777 level admin expose-fd listeners"}}
 {{printf "\tstats timeout 30s"}}
@@ -45,7 +45,7 @@ const (
 
 {{printf "backend b_%s-%s" $name .PortSRC}}
 {{printf "\tmode http"}}
-{{printf "\thttp-request set-header Host %s" $dns}}
+{{printf "\tbalance roundrobin"}}
 {{range $idx, $addr := .Address -}}
 {{printf "\tserver application-%d %s check" $idx $addr}}
 {{end -}}
@@ -68,7 +68,7 @@ const (
 {{end -}}
 {{end -}}`
 
-  MINION_SERVER = `
+	MINION_SERVER = `
 {{"global"}}
 {{printf "\tlog /dev/log \tlocal0"}}
 {{printf "\tlog /dev/log \tlocal1 debug"}}
