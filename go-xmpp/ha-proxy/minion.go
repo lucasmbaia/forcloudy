@@ -91,7 +91,6 @@ func main() {
 					ia.Hosts[key].Address = append(ia.Hosts[key].Address, container.Address)
 				}
 
-				fmt.Println(ia.Hosts[key].Address)
 				ia.Hosts[key].Whitelist = Whitelist(ia.Hosts[key].Address)
 			}
 

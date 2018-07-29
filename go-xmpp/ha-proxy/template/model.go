@@ -40,7 +40,8 @@ const (
 {{printf "\tmode http"}}
 {{printf "\tlog /dev/log local0 debug"}}
 {{printf "\tacl whitelist src %s" .Whitelist}}
-{{printf "\tuse_backend b_%s-%s if whitelist" $name .PortSRC}}
+{{printf "\acl %s_url hdr(host) -i %s:%s" $name $dns .PortSRC}}
+{{printf "\tuse_backend b_%s-%s if whitelist %_url" $name .PortSRC $name}}
 {{printf "\n"}}
 
 {{printf "backend b_%s-%s" $name .PortSRC}}
@@ -114,20 +115,22 @@ const (
 {{printf "\tserver minion-2 minion-2.com.br:%s check ssl verify none" .PortSRC}}
 {{printf "\tserver minion-3 minion-3.com.br:%s check ssl verify none" .PortSRC}}
 {{printf "\tlog /dev/log local0 debug"}}
+
 {{else -}}{{if eq .Protocol "http" -}}
 {{printf "\tbind *:%s" .PortSRC}}
 {{printf "\tmode http"}}
-{{printf "\tacl %s_acl_http hdr(host) -i %s" $name $dns}}
+{{printf "\tacl %s_acl_http hdr(host) -i %s:%s" $name $dns .PortSRC}}
 {{printf "\tuse_backend b_%s-%s if %s_acl_http" $name .PortSRC $name}}
 {{printf "\n"}}
 {{printf "backend b_%s-%s" $name .PortSRC}}
 {{printf "\tmode http"}}
 {{printf "\tsource 0.0.0.0 usesrc client"}}
-{{printf "\thttp-request set-header Host %s" $dns}}
+{{printf "\thttp-request set-header Host %s:%s" $dns .PortSRC}}
 {{printf "\tserver minion-1 minion-1.com.br:%s check" .PortSRC}}
 {{printf "\tserver minion-2 minion-2.com.br:%s check" .PortSRC}}
 {{printf "\tserver minion-3 minion-3.com.br:%s check" .PortSRC}}
 {{printf "\tlog /dev/log local0 debug"}}
+
 {{else -}}
 {{printf "\tbind *:%s" .PortSRC}}
 {{printf "\tmode tcp"}}

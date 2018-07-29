@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	//"forcloudy/go-xmpp/ha-proxy/template"
+	"forcloudy/go-xmpp/ha-proxy/template"
 	"forcloudy/go-xmpp/ha-proxy/watch"
 	"log"
 	"os"
@@ -57,7 +57,6 @@ func main() {
 		cancel context.CancelFunc
 		err    error
 		cli    *watch.Client
-		ia     InfosApplication
 		values = make(chan watch.WatchInfos)
 		sigs   = make(chan os.Signal, 1)
 	)
@@ -77,6 +76,7 @@ func main() {
 
 	go func() {
 		for {
+			var ia InfosApplication
 			infos := <-values
 
 			if err = json.Unmarshal([]byte(infos.Values), &ia); err != nil {
@@ -86,21 +86,20 @@ func main() {
 
 			fmt.Println(infos.Key, infos.Values)
 
-			for key, host := range ia.Hosts {
+			for key, _ := range ia.Hosts {
 				for _, container := range ia.Hosts[key].Containers {
 					ia.Hosts[key].Address = append(ia.Hosts[key].Address, container.Address)
 				}
 
-				ia.Hosts[key].Whitelist = Whitelist(host.Address)
+				ia.Hosts[key].Whitelist = Whitelist(ia.Hosts[key].Address)
 			}
 
 			ia.Name = strings.Replace(infos.Key, *key, "", 1)
 
-			fmt.Println(ia)
-			/*if err = template.ConfGenerate(*path, ia.Name, template.MINION_SERVER, ia); err != nil {
+			if err = template.ConfGenerate(*path, ia.Name, template.MINION_SERVER, ia); err != nil {
 				log.Printf("Error to generate conf: %s", err.Error())
 				continue
-			}*/
+			}
 		}
 	}()
 
