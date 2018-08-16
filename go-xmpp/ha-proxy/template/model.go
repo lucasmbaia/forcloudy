@@ -35,6 +35,19 @@ const (
 {{printf "\tlog /dev/log local0 debug"}}
 {{printf "\n"}}
 
+
+{{printf "frontend all_sites"}}
+{{printf "\t bind 0.0.0.0:80"}}
+{{printf "\t mode http"}}
+{{printf "\tlog /dev/log local0 debug"}}
+{{printf "\tacl whitelist src %s" .Whitelist}}
+{{range $idx, $host := .Hosts -}}
+{{printf "\t acl %s_url hdr(host) eq %s" .Name .Dns}}
+{{printf "\t use_backend bac_%s if whitelist %s_url" .Name .Name}}
+{{end -}}
+
+
+
 {{else -}}{{if eq .Protocol "http" -}}
 {{printf "\tbind *:%s" .PortSRC}}
 {{printf "\tmode http"}}
