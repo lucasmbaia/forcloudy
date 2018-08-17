@@ -1,6 +1,89 @@
 package template
 
 const (
+HTTP_SERVER = `
+{{"global"}}
+{{printf "\tlog /dev/log \tlocal0"}}
+{{printf "\tlog /dev/log \tlocal1 debug"}}
+{{printf "\tchroot /var/lib/haproxy"}}
+{{printf "\tstats socket /run/haproxy/admin.sock mode 660 level admin"}}
+{{printf "\tstats timeout 30s"}}
+{{printf "\tuser haproxy"}}
+{{printf "\tgroup haproxy"}}
+{{printf "\tdaemon"}}
+{{printf "\tca-base /etc/ssl/certs"}}
+{{printf "\tcrt-base /etc/ssl/private"}}
+{{printf "\tssl-default-bind-ciphers ECDH+AESGCM:DH+AESGCM:ECDH+AES256:DH+AES256:ECDH+AES128:DH+AES:ECDH+3DES:DH+3DES:RSA+AESGCM:RSA+AES:RSA+3DES:!aNULL:!MD5:!DSS"}}
+{{printf "\tssl-default-bind-options no-sslv3"}}
+{{printf "\n"}}
+{{"defaults"}}
+{{printf "\tlog \tglobal"}}
+{{printf "\tmode \thttp"}}
+{{printf "\toption  dontlognull"}}
+{{printf "\ttimeout connect 5000"}}
+{{printf "\ttimeout client  50000"}}
+{{printf "\ttimeout server  50000"}}
+{{printf "\terrorfile 400 /etc/haproxy/errors/400.http"}}
+{{printf "\terrorfile 403 /etc/haproxy/errors/403.http"}}
+{{printf "\terrorfile 408 /etc/haproxy/errors/408.http"}}
+{{printf "\terrorfile 500 /etc/haproxy/errors/500.http"}}
+{{printf "\terrorfile 502 /etc/haproxy/errors/502.http"}}
+{{printf "\terrorfile 503 /etc/haproxy/errors/503.http"}}
+{{printf "\terrorfile 504 /etc/haproxy/errors/504.http"}}
+
+{{printf "frontend all_sites"}}
+{{printf "\tbind 0.0.0.0:80"}}
+{{printf "\tmode http"}}
+{{printf "\tlog /dev/log local0 debug"}}
+{{range $idx, $host := .Hosts}}
+{{printf "\tacl %s_url hdr(host) eq %s" .Name .Dns}}
+{{printf "\tuse_backend bac_%s if whitelist %s_url" .Name .Name}}
+{{end}}
+
+{{range .Hosts}}
+{{printf "backend bac_%s" .Name}}
+{{printf "\tmode http"}}
+{{printf "\thttp-request set-header Host %s" .Dns}}
+{{printf "\tserver minion-1 minion-1.local:80 check"}}
+{{end}}
+`
+
+HTTP_MINION = `
+{{"global"}}
+{{printf "\tstats socket /run/haproxy/admin.sock mode 777 level admin expose-fd listeners"}}
+{{printf "\tstats timeout 30s"}}
+{{printf "\tdaemon"}}
+{{printf "\tmaxconn 2000"}}
+{{printf "\n"}}
+{{"defaults"}}
+{{printf "\tlog \tglobal"}}
+{{printf "\tmode \thttp"}}
+{{printf "\tretries \t3"}}
+{{printf "\toption http-keep-alive"}}
+{{printf "\toption dontlognull"}}
+{{printf "\ttimeout connect 5000"}}
+{{printf "\ttimeout client 50000"}}
+{{printf "\ttimeout server 50000"}}
+
+{{printf "frontend all_sites"}}
+{{printf "\tbind 0.0.0.0:80"}}
+{{printf "\tmode http"}}
+{{printf "\tlog /dev/log local0 debug"}}
+{{range $idx, $host := .Hosts}}
+{{printf "\tacl whitelist_%s src %s" .Name .Whitelist}}
+{{printf "\tacl %s_url hdr(host) eq %s" .Name .Dns}}
+{{printf "\tuse_backend bac_%s if %s_url whitelist_%s" .Name .Name .Name}}
+{{end}}
+
+{{range .Hosts}}
+{{printf "backend bac_%s" .Name}}
+{{printf "\tmode http"}}
+{{range $idx, $container := .Containers -}}
+{{printf "\tserver application-%d %s check" $idx .Address}}
+{{end -}}
+{{end}}
+`
+
 	MINION = `
 {{"global"}}
 {{printf "\tstats socket /run/haproxy/admin.sock mode 777 level admin expose-fd listeners"}}
@@ -36,7 +119,19 @@ const (
 {{printf "\n"}}
 
 
-{{printf "frontend all_sites"}}
+{{/*printf "frontend all_sites"}}
+{{printf "\t bind 0.0.0.0:80"}}
+{{printf "\t mode http"}}
+{{printf "\tlog /dev/log local0 debug"}}
+{{printf "\tacl whitelist src %s" .Whitelist}}
+{{range $idx, $host := .Hosts -}}
+{{printf "\t acl %s_url hdr(host) eq %s" .Name .Dns}}
+{{printf "\t use_backend bac_%s if whitelist %s_url" .Name .Name}}
+{{end -*/}}
+
+
+
+{{else -}}{{if eq .Protocol "http" -}}
 {{printf "\t bind 0.0.0.0:80"}}
 {{printf "\t mode http"}}
 {{printf "\tlog /dev/log local0 debug"}}
@@ -45,25 +140,21 @@ const (
 {{printf "\t acl %s_url hdr(host) eq %s" .Name .Dns}}
 {{printf "\t use_backend bac_%s if whitelist %s_url" .Name .Name}}
 {{end -}}
-
-
-
-{{else -}}{{if eq .Protocol "http" -}}
-{{printf "\tbind *:%s" .PortSRC}}
+{{/*printf "\tbind *:%s" .PortSRC}}
 {{printf "\tmode http"}}
 {{printf "\tlog /dev/log local0 debug"}}
 {{printf "\tacl whitelist src %s" .Whitelist}}
 {{printf "\acl %s_url hdr(host) -i %s:%s" $name $dns .PortSRC}}
 {{printf "\tuse_backend b_%s-%s if whitelist %_url" $name .PortSRC $name}}
-{{printf "\n"}}
+{{printf "\n"*/}}
 
-{{printf "backend b_%s-%s" $name .PortSRC}}
+{{/*printf "backend b_%s-%s" $name .PortSRC}}
 {{printf "\tmode http"}}
 {{printf "\tbalance roundrobin"}}
 {{range $idx, $addr := .Address -}}
 {{printf "\tserver application-%d %s check" $idx $addr}}
 {{end -}}
-{{printf "\n"}}
+{{printf "\n"*/}}
 
 {{else -}}
 {{printf "\tbind *:%s" .PortSRC}}
