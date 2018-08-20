@@ -35,6 +35,7 @@ type Hosts struct {
   Containers  []Containers  `json:"containers,omitempty"`
   Address     []string	    `json:"-"`
   Whitelist   string	    `json:"-"`
+  Minions     []string	    `json:"-"`
 }
 
 type Containers struct {

@@ -1,38 +1,12 @@
 package template
 
-const (
-HTTP_SERVER = `
-{{"global"}}
-{{printf "\tlog /dev/log \tlocal0"}}
-{{printf "\tlog /dev/log \tlocal1 debug"}}
-{{printf "\tchroot /var/lib/haproxy"}}
-{{printf "\tstats socket /run/haproxy/admin.sock mode 660 level admin"}}
-{{printf "\tstats timeout 30s"}}
-{{printf "\tuser haproxy"}}
-{{printf "\tgroup haproxy"}}
-{{printf "\tdaemon"}}
-{{printf "\tca-base /etc/ssl/certs"}}
-{{printf "\tcrt-base /etc/ssl/private"}}
-{{printf "\tssl-default-bind-ciphers ECDH+AESGCM:DH+AESGCM:ECDH+AES256:DH+AES256:ECDH+AES128:DH+AES:ECDH+3DES:DH+3DES:RSA+AESGCM:RSA+AES:RSA+3DES:!aNULL:!MD5:!DSS"}}
-{{printf "\tssl-default-bind-options no-sslv3"}}
-{{printf "\n"}}
-{{"defaults"}}
-{{printf "\tlog \tglobal"}}
-{{printf "\tmode \thttp"}}
-{{printf "\toption  dontlognull"}}
-{{printf "\ttimeout connect 5000"}}
-{{printf "\ttimeout client  50000"}}
-{{printf "\ttimeout server  50000"}}
-{{printf "\terrorfile 400 /etc/haproxy/errors/400.http"}}
-{{printf "\terrorfile 403 /etc/haproxy/errors/403.http"}}
-{{printf "\terrorfile 408 /etc/haproxy/errors/408.http"}}
-{{printf "\terrorfile 500 /etc/haproxy/errors/500.http"}}
-{{printf "\terrorfile 502 /etc/haproxy/errors/502.http"}}
-{{printf "\terrorfile 503 /etc/haproxy/errors/503.http"}}
-{{printf "\terrorfile 504 /etc/haproxy/errors/504.http"}}
+import "errors"
 
+const (
+  HTTP_SERVER = `
+{{$interface := .Interface}}
 {{printf "frontend all_sites"}}
-{{printf "\tbind 0.0.0.0:80"}}
+{{printf "\tbind %s:80" $interface}}
 {{printf "\tmode http"}}
 {{printf "\tlog /dev/log local0 debug"}}
 {{range $idx, $host := .Hosts}}
@@ -44,29 +18,15 @@ HTTP_SERVER = `
 {{printf "backend bac_%s" .Name}}
 {{printf "\tmode http"}}
 {{printf "\thttp-request set-header Host %s" .Dns}}
-{{printf "\tserver minion-1 minion-1.local:80 check"}}
-{{end}}
-`
+{{range $idx, $minion := .Minions -}}
+{{printf "\tserver host-%d %s:80 check" $idx $minion}}
+{{end -}}
+{{end}}`
 
-HTTP_MINION = `
-{{"global"}}
-{{printf "\tstats socket /run/haproxy/admin.sock mode 777 level admin expose-fd listeners"}}
-{{printf "\tstats timeout 30s"}}
-{{printf "\tdaemon"}}
-{{printf "\tmaxconn 2000"}}
-{{printf "\n"}}
-{{"defaults"}}
-{{printf "\tlog \tglobal"}}
-{{printf "\tmode \thttp"}}
-{{printf "\tretries \t3"}}
-{{printf "\toption http-keep-alive"}}
-{{printf "\toption dontlognull"}}
-{{printf "\ttimeout connect 5000"}}
-{{printf "\ttimeout client 50000"}}
-{{printf "\ttimeout server 50000"}}
-
+  HTTP_MINION = `
+{{$interface := .Interface}}
 {{printf "frontend all_sites"}}
-{{printf "\tbind 0.0.0.0:80"}}
+{{printf "\tbind %s:80" $interface}}
 {{printf "\tmode http"}}
 {{printf "\tlog /dev/log local0 debug"}}
 {{range $idx, $host := .Hosts}}
@@ -78,11 +38,12 @@ HTTP_MINION = `
 {{range .Hosts}}
 {{printf "backend bac_%s" .Name}}
 {{printf "\tmode http"}}
-{{range $idx, $container := .Containers -}}
-{{printf "\tserver application-%d %s check" $idx .Address}}
+{{printf "\tbalance roundrobin"}}
+{{printf "\thttp-request set-header Host %s" .Dns}}
+{{range $idx, $addr := .Address -}}
+{{printf "\tserver application-%d %s check" $idx $addr}}
 {{end -}}
-{{end}}
-`
+{{end}}`
 
 	MINION = `
 {{"global"}}
@@ -250,3 +211,14 @@ HTTP_MINION = `
 {{end}}
 {{end}}`
 )
+
+func ModelConf(m string) (string, error) {
+  switch m {
+  case "minion-http":
+    return HTTP_MINION, nil
+  case "server-http":
+    return HTTP_SERVER, nil
+  default:
+    return "", errors.New("Model reported is unknown")
+  }
+}
