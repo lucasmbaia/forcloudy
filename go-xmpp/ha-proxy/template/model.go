@@ -11,7 +11,7 @@ const (
 {{printf "\tlog /dev/log local0 debug"}}
 {{range $idx, $host := .Hosts}}
 {{printf "\tacl %s_url hdr(host) eq %s" .Name .Dns}}
-{{printf "\tuse_backend bac_%s if whitelist %s_url" .Name .Name}}
+{{printf "\tuse_backend bac_%s if %s_url" .Name .Name}}
 {{end}}
 
 {{range .Hosts}}
