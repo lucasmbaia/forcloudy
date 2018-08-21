@@ -1,12 +1,35 @@
 package template
 
-import "errors"
+import (
+  "errors"
+)
 
 const (
   HTTP_SERVER = `
 {{$interface := .Interface}}
-{{printf "frontend all_sites"}}
+{{printf "frontend all_sites_http"}}
 {{printf "\tbind %s:80" $interface}}
+{{printf "\tmode http"}}
+{{printf "\tlog /dev/log local0 debug"}}
+{{range $idx, $host := .Hosts}}
+{{printf "\tacl %s_url hdr(host) eq %s" .Name .Dns}}
+{{printf "\tuse_backend bac_%s if %s_url" .Name .Name}}
+{{end}}
+
+{{range .Hosts}}
+{{printf "backend bac_%s" .Name}}
+{{printf "\tmode http"}}
+{{printf "\thttp-request set-header Host %s" .Dns}}
+{{range $idx, $minion := .Minions -}}
+{{printf "\tserver host-%d %s:80 check" $idx $minion}}
+{{end -}}
+{{end}}`
+
+  HTTPS_SERVER = `
+{{$ssl := .SSL}}
+{{$interface := .Interface}}
+{{printf "frontend all_sites_https"}}
+{{printf "\tbind %s:443 %s" $interface $ssl}}
 {{printf "\tmode http"}}
 {{printf "\tlog /dev/log local0 debug"}}
 {{range $idx, $host := .Hosts}}
@@ -25,7 +48,7 @@ const (
 
   HTTP_MINION = `
 {{$interface := .Interface}}
-{{printf "frontend all_sites"}}
+{{printf "frontend all_sites_http"}}
 {{printf "\tbind %s:80" $interface}}
 {{printf "\tmode http"}}
 {{printf "\tlog /dev/log local0 debug"}}
@@ -44,6 +67,65 @@ const (
 {{printf "\tserver application-%d %s check" $idx $addr}}
 {{end -}}
 {{end}}`
+
+  HTTPS_MINION = `
+{{$ssl := .SSL}}
+{{$interface := .Interface}}
+{{printf "frontend all_sites_https"}}
+{{printf "\tbind %s:443 %s" $interface $ssl}}
+{{printf "\tmode http"}}
+{{printf "\tlog /dev/log local0 debug"}}
+{{range $idx, $host := .Hosts}}
+{{printf "\tacl whitelist_%s src %s" .Name .Whitelist}}
+{{printf "\tacl %s_url hdr(host) eq %s" .Name .Dns}}
+{{printf "\tuse_backend bac_%s if %s_url whitelist_%s" .Name .Name .Name}}
+{{end}}
+
+{{range .Hosts}}
+{{printf "backend bac_%s" .Name}}
+{{printf "\tmode http"}}
+{{printf "\tbalance roundrobin"}}
+{{printf "\thttp-request set-header Host %s" .Dns}}
+{{range $idx, $addr := .Address -}}
+{{printf "\tserver application-%d %s check ssl verify none" $idx $addr}}
+{{end -}}
+{{end}}`
+
+  TCP_UDP_MINION = `
+{{$name := .Name}}
+{{$interface := .Interface}}
+{{range .Hosts -}}
+{{printf "frontend front_%s-%s" $name .PortSRC}}
+{{printf "\tbind %s:%s" $interface .PortSRC}}
+{{printf "\tmode tcp"}}
+{{printf "\tacl whitelist_%s-%s src %s" $name .PortSRC .Whitelist}}
+{{printf "\tuse_backend bac_%s-%s if whitelist_%s-%s" $name .PortSRC $name .PortSRC}}
+
+{{printf "backend bac_%s-%s" $name .PortSRC}}
+{{printf "\tmode tcp"}}
+{{printf "\tbalance roundrobin"}}
+{{range $idx, $addr := .Address -}}
+{{printf "\tserver application-%d %s check" $idx $addr}}
+{{end -}}
+{{end -}}`
+
+  TCP_UDP_SERVER = `
+{{$name := .Name}}
+{{$interface := .Interface}}
+{{range .Hosts -}}
+{{$port := .PortSRC}}
+{{printf "frontend front_%s-%s" $name .PortSRC}}
+{{printf "\tbind %s:%s" $interface .PortSRC}}
+{{printf "\tmode tcp"}}
+{{printf "\tuse_backend bac_%s-%s" $name .PortSRC}}
+
+{{printf "backend bac_%s-%s" $name .PortSRC}}
+{{printf "\tmode tcp"}}
+{{printf "\tbalance roundrobin"}}
+{{range $idx, $minion := .Minions -}}
+{{printf "\tserver host-%d %s:%s check" $idx $minion $port}}
+{{end -}}
+{{end -}}`
 
 	MINION = `
 {{"global"}}
@@ -216,8 +298,16 @@ func ModelConf(m string) (string, error) {
   switch m {
   case "minion-http":
     return HTTP_MINION, nil
+  case "minion-https":
+    return HTTPS_MINION, nil
   case "server-http":
     return HTTP_SERVER, nil
+  case "server-https":
+    return HTTPS_SERVER, nil
+  case "minion-tcpudp":
+    return TCP_UDP_MINION, nil
+  case "server-tcpudp":
+    return TCP_UDP_SERVER, nil
   default:
     return "", errors.New("Model reported is unknown")
   }

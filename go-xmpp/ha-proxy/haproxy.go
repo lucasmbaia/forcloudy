@@ -22,7 +22,9 @@ var (
   path	    = flag.String("path", "/usr/local/etc/", "Path to conf ha-proxy")
   model	    = flag.String("model", "", "Model of template")
   addr	    = flag.String("addr", "", "Address of Network Interface")
+  lbproxy   = flag.String("lbproxy", "lb-proxy-1", "")
   exclusive = flag.Bool("exclusive", false, "")
+  certs	    = flag.String("certs", "", "Certs of ssl")
 
   protocols = map[string]string {
     "app-http": "http",
@@ -35,6 +37,7 @@ type InfosApplication struct {
   Hosts	    []Hosts `json:"hosts,omitempty"`
   Dns	    string  `json:"dns,omitempty"`
   Interface string  `json:"-"`
+  SSL	    string  `json:"-"`
 }
 
 type Hosts struct {
@@ -65,8 +68,7 @@ func Whitelist(address []string, minions []string) string {
     addrs = fmt.Sprintf("%s%s ", addrs, strings.Split(v, ":")[0])
   }
 
-  addrs = fmt.Sprintf("%s%s", addrs, strings.Join(minions, " "))
-
+  addrs = fmt.Sprintf("%s%s %s", addrs, strings.Join(minions, " "), *lbproxy)
   return addrs
 }
 
@@ -147,6 +149,10 @@ func pending(name string, values []byte, mt string) {
     ia.Hosts[key].Whitelist = Whitelist(ia.Hosts[key].Address, removeStringDuplicates(ia.Hosts[key].Minions))
     ia.Hosts[key].Address = AddressToMinion(ia.Hosts[key].Containers, *exclusive)
     ia.Hosts[key].Minions = removeStringDuplicates(ia.Hosts[key].Minions)
+  }
+
+  if *certs != "" {
+    ia.SSL = fmt.Sprintf("ssl %s", strings.Join(strings.Split(*certs, ","), "crt "))
   }
 
   ia.Name = strings.Replace(name, *key, "", 1)
