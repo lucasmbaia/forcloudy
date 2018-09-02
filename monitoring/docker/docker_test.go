@@ -1,4 +1,4 @@
-package stats
+package docker
 
 import (
 	"fmt"
@@ -6,5 +6,5 @@ import (
 )
 
 func TestListAllContainers(t *testing.T) {
-	fmt.Println(ListAllContainers())
+	fmt.Println(ListAllContainers("lucas"))
 }

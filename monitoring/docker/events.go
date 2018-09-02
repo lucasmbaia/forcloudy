@@ -1,14 +1,14 @@
-package main
+package docker
 
 import (
-  "log"
-  "fmt"
+  //"log"
+  //"fmt"
   "os"
   "os/exec"
   "context"
   "bufio"
   "io"
-  "encoding/json"
+  //"encoding/json"
 )
 
 type Events struct {
@@ -30,7 +30,7 @@ type Attributes struct {
   Name	string	`json:"name,omitempty"`
 }
 
-func events(ctx context.Context, event chan<- []byte) error {
+func DockerEvents(ctx context.Context, event chan<- []byte) error {
   var (
     cmd	    *exec.Cmd
     err	    error
@@ -66,7 +66,7 @@ func events(ctx context.Context, event chan<- []byte) error {
   return nil
 }
 
-func main() {
+/*func main() {
   var (
     err	error
     errc = make(chan error, 1)
@@ -96,4 +96,4 @@ func main() {
   }
 
   fmt.Println("vim-go")
-}
+}*/
