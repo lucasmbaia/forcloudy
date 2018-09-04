@@ -28,7 +28,6 @@ func Run(ctx context.Context, running int) error {
     hostname	string
     metrics	_metrics.Metrics
     customers	[]_metrics.Customers
-    networks	[]_metrics.Networks
     net		= utils.NewNetwork()
     wg		sync.WaitGroup
     body	[]byte
@@ -67,21 +66,36 @@ func Run(ctx context.Context, running int) error {
 	for _, container := range containers {
 	  go func(container docker.Containers) {
 	    var (
-	      cn	[]string
-	      as	[]string
-	      app	string
-	      containsC	bool
-	      containsA	bool
+	      cn	  []string
+	      as	  []string
+	      app	  string
+	      containsC	  bool
+	      containsA	  bool
+	      wgContainer sync.WaitGroup
+	      networks	  []_metrics.Networks
+	      memory	  _metrics.Memory
 	    )
 
+	    wgContainer.Add(2)
 	    cn = strings.Split(container.Name, "_app-")
 	    as = strings.Split(cn[1], "-")
 	    app = strings.Join(as[:len(as)-1], "-")
 
-	    if networks, err = net.NetworkUtilization(container.PID, running); err != nil {
-	      log.Println(err)
-	    }
+	    go func() {
+	      if networks, err = net.NetworkUtilization(container.PID, running); err != nil {
+		log.Println(err)
+	      }
+	      wgContainer.Done()
+	    }()
 
+	    go func() {
+	      if memory, err = utils.MemoryUtilization(container.ID); err != nil {
+		log.Println(err)
+	      }
+	      wgContainer.Done()
+	    }()
+
+	    wgContainer.Wait()
 	    for indexC, customer := range customers {
 	      if customer.Name == cn[0] {
 		for indexA, application := range customers[indexC].Applications {
@@ -89,6 +103,7 @@ func Run(ctx context.Context, running int) error {
 		    customers[indexC].Applications[indexA].Containers = append(customers[indexC].Applications[indexA].Containers, _metrics.Containers{
 		      ID:	container.ID,
 		      Name:	container.Name,
+		      Memory:	memory,
 		      Networks:	networks,
 		    })
 
@@ -101,8 +116,9 @@ func Run(ctx context.Context, running int) error {
 		  customers[indexC].Applications = append(customers[indexC].Applications, _metrics.Applications{
 		    Name: app,
 		    Containers: []_metrics.Containers{{
-		      ID:	    container.ID,
-		      Name:	    container.Name,
+		      ID:	container.ID,
+		      Name:	container.Name,
+		      Memory:	memory,
 		      Networks: networks,
 		    }},
 		  })
@@ -119,8 +135,9 @@ func Run(ctx context.Context, running int) error {
 		Applications: []_metrics.Applications{{
 		  Name: app,
 		  Containers: []_metrics.Containers{{
-		    ID:	    container.ID,
-		    Name:	    container.Name,
+		    ID:	      container.ID,
+		    Name:     container.Name,
+		    Memory:   memory,
 		    Networks: networks,
 		  }},
 		}},
