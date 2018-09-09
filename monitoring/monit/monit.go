@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"forcloudy/monitoring/docker"
+	"forcloudy/monitoring/kafka"
 	_metrics "forcloudy/monitoring/metrics"
 	"forcloudy/monitoring/utils"
 	"log"
@@ -31,15 +32,27 @@ func Run(ctx context.Context, running int) error {
 		net        = utils.NewNetwork()
 		wg         sync.WaitGroup
 		body       []byte
+		producer   *kafka.Producer
+		message    = make(chan []byte)
 	)
 
 	if hostname, err = os.Hostname(); err != nil {
 		errc <- err
 	}
 
+	if producer, err = kafka.NewProducer(context.Background(), []string{"192.168.204.134:9092"}, 5); err != nil {
+		errc <- err
+	}
+
 	if containers, err = docker.ListAllContainers(NO_FILTER); err != nil {
 		errc <- err
 	}
+
+	go func() {
+		if err = producer.SyncProducer("monitoring", "containers", message); err != nil {
+			errc <- err
+		}
+	}()
 
 	go updateContainers(ctx, &containers, net)
 	for _, container := range containers {
@@ -157,12 +170,20 @@ func Run(ctx context.Context, running int) error {
 				wg.Wait()
 				metrics.Customers = customers
 
-				if body, err = json.Marshal(metrics); err != nil {
-					log.Println(err)
-					break
+				for _, customer := range metrics.Customers {
+					if body, err = json.Marshal(customer); err != nil {
+						log.Println(err)
+						continue
+					}
+
+					log.Println(string(body))
+					message <- body
 				}
 
-				log.Println(string(body))
+				/*if body, err = json.Marshal(metrics); err != nil {
+					log.Println(err)
+					break
+				}*/
 			case _ = <-ctx.Done():
 				log.Println("DONE")
 			}

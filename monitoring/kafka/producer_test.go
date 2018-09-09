@@ -7,24 +7,24 @@ import (
 	"time"
 )
 
-func TestNewClient(t *testing.T) {
+func TestNewProducer(t *testing.T) {
 	fmt.Println(NewProducer(context.Background(), []string{"192.168.204.134:9092"}, 5))
 }
 
 func TestProducerMessage(t *testing.T) {
 	var (
-		client  *Client
-		err     error
-		message = make(chan []byte)
-		timer   *time.Ticker
+		producer *Producer
+		err      error
+		message  = make(chan []byte)
+		timer    *time.Ticker
 	)
 
-	if client, err = NewProducer(context.Background(), []string{"192.168.204.134:9092"}, 5); err != nil {
+	if producer, err = NewProducer(context.Background(), []string{"192.168.204.134:9092"}, 5); err != nil {
 		t.Fatal(err)
 	}
 
 	go func() {
-		if err = client.Producer("lucas", "luquitas", message); err != nil {
+		if err = producer.SyncProducer("lucas", "luquitas", message); err != nil {
 			t.Fatal(err)
 		}
 	}()

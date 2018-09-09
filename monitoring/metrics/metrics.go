@@ -6,7 +6,7 @@ type Metrics struct {
 }
 
 type Customers struct {
-	Name         string         `json:",omitempty"`
+	Name         string         `json:"Customer,omitempty"`
 	Applications []Applications `json:",omitempty"`
 }
 
