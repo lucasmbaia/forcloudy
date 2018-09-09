@@ -3,6 +3,7 @@ package monit
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"forcloudy/monitoring/docker"
 	"forcloudy/monitoring/kafka"
 	_metrics "forcloudy/monitoring/metrics"
@@ -125,6 +126,17 @@ func Run(ctx context.Context, conf Config) error {
 				wg.Wait()
 				metrics.Customers = listCustomers(mcontainers)
 
+				if body, err = json.Marshal(mcontainers); err != nil {
+					log.Println(err)
+					break
+				}
+
+				fmt.Println("************************* ALL ********************************")
+				fmt.Println(mcontainers)
+				fmt.Println("************************* LIST ********************************")
+				fmt.Println(metrics.Customers)
+				fmt.Println("************************* FIM ********************************")
+
 				for _, customer := range metrics.Customers {
 					if body, err = json.Marshal(customer); err != nil {
 						log.Println(err)
@@ -135,10 +147,6 @@ func Run(ctx context.Context, conf Config) error {
 					//message <- body
 				}
 
-				/*if body, err = json.Marshal(metrics); err != nil {
-					log.Println(err)
-					break
-				}*/
 			case _ = <-ctx.Done():
 				log.Println("DONE")
 			}
@@ -167,6 +175,8 @@ func listCustomers(containers []_metrics.Containers) []_metrics.Customers {
 		cn = strings.Split(container.Name, "_app-")
 		as = strings.Split(cn[1], "-")
 		app = strings.Join(as[:len(as)-1], "-")
+		containsA = false
+		containsC = false
 
 		for indexC, customer := range customers {
 			if customer.Name == cn[0] {
