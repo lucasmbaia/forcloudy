@@ -1,10 +1,15 @@
 package main
 
 import (
-  "forcloudy/monitoring/monit"
-  "context"
+	"context"
+	"fmt"
+	"forcloudy/monitoring/monit"
 )
 
 func main() {
-  monit.Run(context.Background(), 5)
+	fmt.Println(monit.Run(context.Background(), monit.Config{
+		Running: 5,
+		Topic:   "monitoring",
+		Key:     "containers",
+	}))
 }

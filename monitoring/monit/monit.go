@@ -20,20 +20,26 @@ const (
 	DIE       = "die"
 )
 
-func Run(ctx context.Context, running int) error {
+type Config struct {
+	Running int
+	Topic   string
+	Key     string
+}
+
+func Run(ctx context.Context, conf Config) error {
 	var (
-		containers []docker.Containers
-		err        error
-		errc       = make(chan error, 1)
-		t          *time.Ticker
-		hostname   string
-		metrics    _metrics.Metrics
-		customers  []_metrics.Customers
-		net        = utils.NewNetwork()
-		wg         sync.WaitGroup
-		body       []byte
-		producer   *kafka.Producer
-		message    = make(chan []byte)
+		containers  []docker.Containers
+		err         error
+		errc        = make(chan error, 1)
+		t           *time.Ticker
+		hostname    string
+		metrics     _metrics.Metrics
+		mcontainers []_metrics.Containers
+		net         = utils.NewNetwork()
+		wg          sync.WaitGroup
+		body        []byte
+		producer    *kafka.Producer
+		message     = make(chan []byte)
 	)
 
 	if hostname, err = os.Hostname(); err != nil {
@@ -49,7 +55,7 @@ func Run(ctx context.Context, running int) error {
 	}
 
 	go func() {
-		if err = producer.SyncProducer("monitoring", "containers", message); err != nil {
+		if err = producer.SyncProducer(conf.Topic, conf.Key, message); err != nil {
 			errc <- err
 		}
 	}()
@@ -61,24 +67,19 @@ func Run(ctx context.Context, running int) error {
 		}
 	}
 
-	t = time.NewTicker(time.Duration(running) * time.Second)
+	t = time.NewTicker(time.Duration(conf.Running) * time.Second)
 	metrics.Hostname = hostname
 
 	go func() {
 		for {
 			select {
 			case _ = <-t.C:
-				customers = []_metrics.Customers{}
+				mcontainers = []_metrics.Containers{}
 				wg.Add(len(containers))
 
 				for _, container := range containers {
 					go func(container docker.Containers) {
 						var (
-							cn          []string
-							as          []string
-							app         string
-							containsC   bool
-							containsA   bool
 							wgContainer sync.WaitGroup
 							networks    []_metrics.Networks
 							cpu         _metrics.Cpu
@@ -86,12 +87,9 @@ func Run(ctx context.Context, running int) error {
 						)
 
 						wgContainer.Add(3)
-						cn = strings.Split(container.Name, "_app-")
-						as = strings.Split(cn[1], "-")
-						app = strings.Join(as[:len(as)-1], "-")
 
 						go func() {
-							if networks, err = net.NetworkUtilization(container.PID, running); err != nil {
+							if networks, err = net.NetworkUtilization(container.PID, conf.Running); err != nil {
 								log.Println(err)
 							}
 							wgContainer.Done()
@@ -112,63 +110,20 @@ func Run(ctx context.Context, running int) error {
 						}()
 
 						wgContainer.Wait()
-						for indexC, customer := range customers {
-							if customer.Name == cn[0] {
-								for indexA, application := range customers[indexC].Applications {
-									if app == application.Name {
-										customers[indexC].Applications[indexA].Containers = append(customers[indexC].Applications[indexA].Containers, _metrics.Containers{
-											ID:       container.ID,
-											Name:     container.Name,
-											Cpu:      cpu,
-											Memory:   memory,
-											Networks: networks,
-										})
-
-										containsA = true
-										break
-									}
-								}
-
-								if !containsA {
-									customers[indexC].Applications = append(customers[indexC].Applications, _metrics.Applications{
-										Name: app,
-										Containers: []_metrics.Containers{{
-											ID:       container.ID,
-											Name:     container.Name,
-											Cpu:      cpu,
-											Memory:   memory,
-											Networks: networks,
-										}},
-									})
-								}
-
-								containsC = true
-								break
-							}
-						}
-
-						if !containsC {
-							customers = append(customers, _metrics.Customers{
-								Name: cn[0],
-								Applications: []_metrics.Applications{{
-									Name: app,
-									Containers: []_metrics.Containers{{
-										ID:       container.ID,
-										Name:     container.Name,
-										Cpu:      cpu,
-										Memory:   memory,
-										Networks: networks,
-									}},
-								}},
-							})
-						}
+						mcontainers = append(mcontainers, _metrics.Containers{
+							ID:       container.ID,
+							Name:     container.Name,
+							Cpu:      cpu,
+							Memory:   memory,
+							Networks: networks,
+						})
 
 						wg.Done()
 					}(container)
 				}
 
 				wg.Wait()
-				metrics.Customers = customers
+				metrics.Customers = listCustomers(mcontainers)
 
 				for _, customer := range metrics.Customers {
 					if body, err = json.Marshal(customer); err != nil {
@@ -177,7 +132,7 @@ func Run(ctx context.Context, running int) error {
 					}
 
 					log.Println(string(body))
-					message <- body
+					//message <- body
 				}
 
 				/*if body, err = json.Marshal(metrics); err != nil {
@@ -196,6 +151,58 @@ func Run(ctx context.Context, running int) error {
 	case _ = <-ctx.Done():
 		return nil
 	}
+}
+
+func listCustomers(containers []_metrics.Containers) []_metrics.Customers {
+	var (
+		cn        []string
+		as        []string
+		app       string
+		containsC bool
+		containsA bool
+		customers []_metrics.Customers
+	)
+
+	for _, container := range containers {
+		cn = strings.Split(container.Name, "_app-")
+		as = strings.Split(cn[1], "-")
+		app = strings.Join(as[:len(as)-1], "-")
+
+		for indexC, customer := range customers {
+			if customer.Name == cn[0] {
+				for indexA, application := range customers[indexC].Applications {
+					if app == application.Name {
+						customers[indexC].Applications[indexA].Containers = append(customers[indexC].Applications[indexA].Containers, container)
+
+						containsA = true
+						break
+					}
+				}
+
+				if !containsA {
+					customers[indexC].Applications = append(customers[indexC].Applications, _metrics.Applications{
+						Name:       app,
+						Containers: []_metrics.Containers{container},
+					})
+				}
+
+				containsC = true
+				break
+			}
+		}
+
+		if !containsC {
+			customers = append(customers, _metrics.Customers{
+				Name: cn[0],
+				Applications: []_metrics.Applications{{
+					Name:       app,
+					Containers: []_metrics.Containers{container},
+				}},
+			})
+		}
+	}
+
+	return customers
 }
 
 func updateContainers(ctx context.Context, containers *[]docker.Containers, net *utils.Utilization) {
