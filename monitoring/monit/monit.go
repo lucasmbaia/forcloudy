@@ -3,7 +3,6 @@ package monit
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"forcloudy/monitoring/docker"
 	"forcloudy/monitoring/kafka"
 	_metrics "forcloudy/monitoring/metrics"
@@ -25,6 +24,7 @@ type Config struct {
 	Running int
 	Topic   string
 	Key     string
+	Kafka	[]string
 }
 
 func Run(ctx context.Context, conf Config) error {
@@ -47,7 +47,7 @@ func Run(ctx context.Context, conf Config) error {
 		errc <- err
 	}
 
-	if producer, err = kafka.NewProducer(context.Background(), []string{"192.168.204.134:9092"}, 5); err != nil {
+	if producer, err = kafka.NewProducer(context.Background(), conf.Kafka, 5); err != nil {
 		errc <- err
 	}
 
@@ -131,12 +131,6 @@ func Run(ctx context.Context, conf Config) error {
 					break
 				}
 
-				fmt.Println("************************* ALL ********************************")
-				fmt.Println(mcontainers)
-				fmt.Println("************************* LIST ********************************")
-				fmt.Println(metrics.Customers)
-				fmt.Println("************************* FIM ********************************")
-
 				for _, customer := range metrics.Customers {
 					if body, err = json.Marshal(customer); err != nil {
 						log.Println(err)
@@ -144,7 +138,7 @@ func Run(ctx context.Context, conf Config) error {
 					}
 
 					log.Println(string(body))
-					//message <- body
+					message <- body
 				}
 
 			case _ = <-ctx.Done():

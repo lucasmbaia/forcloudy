@@ -31,9 +31,10 @@ func main() {
 	done := make(chan bool, 1)
 	count := 0
 
-	request("http://engemon.forcloudy.com", count)
-	request("http://samsung.forcloudy.com", count)
-	request("http://luquinhas.forcloudy.com", count)
+	request("http://dbz.local", count)
+	request("http://hero.local", count)
+	request("http://lindoia.local", count)
+	request("http://mineral.local", count)
 	//request("http://charabanaia.com.br:8080", count)
 
 	<-done

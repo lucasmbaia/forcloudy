@@ -3,3 +3,5 @@ import:
 - package: github.com/google/gopacket
 - package: github.com/opencontainers/runc/libcontainer/system
 - package: github.com/Shopify/sarama
+- package: github.com/olivere/elastic
+  version: v6.1.25
