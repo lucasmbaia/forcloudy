@@ -11,6 +11,7 @@ import (
   dockerxmpp "github.com/lucasmbaia/go-xmpp/docker"
   "log"
   "errors"
+  "time"
   //"reflect"
   //"strings"
 )
@@ -25,7 +26,16 @@ var (
   containers        []docker.Containers
   containers_deploy []string
   containers_die    []string
+  eventsDocker	    map[string]chan EventsDocker
 )
+
+type EventsDocker struct {
+  Error	error
+}
+
+func init() {
+  eventsDocker = make(map[string]chan EventsDocker)
+}
 
 func Run(ctx context.Context) error {
   var (
@@ -68,6 +78,14 @@ func watchEvents(ctx context.Context) {
 
 	if err = json.Unmarshal(msg, &ev); err != nil {
 	  log.Panic(err)
+	}
+
+	if ev.Status == "die" {
+	  if ev.Actor.Attributes.Name != EMPTY_STR {
+	    if _, ok := eventsDocker[ev.Actor.Attributes.Name]; ok {
+	      eventsDocker[ev.Actor.Attributes.Name] <- EventsDocker{Error: errors.New("Erro to create container")}
+	    }
+	  }
 	}
 
 	log.Println(ev)
@@ -134,17 +152,40 @@ func Iq(i interface{}) {
 	break
       }
 
+      fmt.Println(q.Action)
       switch q.Action{
       case EMPTY_STR:
 	err = errors.New("Action is not informed")
       case dockerxmpp.GENERATE_IMAGE:
+	fmt.Println("GENERATE IMAGE PORRA")
 	err = generateImage(q.Elements)
       case dockerxmpp.LOAD_IMAGE:
 	elements, err = loadImage(q.Elements)
       case dockerxmpp.EXISTS_IMAGE:
 	elements, err = existsImage(q.Elements)
       case dockerxmpp.MASTER_DEPLOY:
-	elements, err = masterDeploy(q.Elements)
+	var (
+	  ed  = make(chan EventsDocker, 1)
+	)
+
+	eventsDocker[q.Elements.Name] = ed
+	if elements, err = masterDeploy(q.Elements); err != nil {
+	  delete(eventsDocker, q.Elements.Name)
+	  break
+	}
+
+	go func() {
+	  time.Sleep(5 * time.Second)
+	  if _, ok := eventsDocker[q.Elements.Name]; ok {
+	    eventsDocker[q.Elements.Name] <- EventsDocker{}
+	  }
+	}()
+
+	select {
+	case r := <-ed:
+	  err = r.Error
+	}
+	delete(eventsDocker, q.Elements.Name)
       case dockerxmpp.APPEND_DEPLOY:
 	elements, err = appendDeploy(q.Elements)
       case dockerxmpp.NAME_CONTAINERS:
@@ -168,6 +209,7 @@ func Iq(i interface{}) {
 	},
       }
 
+      fmt.Println(iq)
       if err = config.EnvSingleton.XmppConnection.Send(iq); err != nil {
 	log.Println(err)
       }

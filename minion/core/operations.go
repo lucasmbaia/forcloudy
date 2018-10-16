@@ -96,15 +96,50 @@ func existsImage(elements dockerxmpp.Elements) (dockerxmpp.Elements, error) {
 }
 
 func deploy(elements dockerxmpp.Elements, imageCreate bool) (dockerxmpp.Elements, error) {
-  return dockerxmpp.Elements{}, nil
+  var (
+    result  []string
+    err	    error
+    args    []string
+  )
+
+  if imageCreate {
+    args = []string{"run", "-t", "--rm"}
+  } else {
+    args = []string{"run", "--rm"}
+  }
+
+  if len(elements.Args) > 0 {
+    for _, arg := range elements.Args {
+      args = append(args, "--env")
+      args = append(args, fmt.Sprintf("%s=%s", arg.Name, arg.Value))
+    }
+  }
+
+  if len(elements.Ports) > 0 {
+    args = append(args, "-P")
+    for _, port := range elements.Ports {
+      args = append(args, fmt.Sprintf("--expose=%d", port.Port))
+    }
+  }
+
+  args = append(args, []string{"--name", elements.Name}...)
+  args = append(args, fmt.Sprintf("--cpus=%s", elements.Cpus))
+  args = append(args, fmt.Sprintf("--memory=%s", elements.Memory))
+  args = append(args, []string{"-d", elements.Image}...)
+
+  if result, err = command(exec.Command("docker", args...)); err != nil {
+    return dockerxmpp.Elements{}, err
+  }
+
+  return dockerxmpp.Elements{ID: result[0]}, nil
 }
 
 func masterDeploy(elements dockerxmpp.Elements) (dockerxmpp.Elements, error) {
-  return dockerxmpp.Elements{}, nil
+  return deploy(elements, elements.CreateImage)
 }
 
 func appendDeploy(elements dockerxmpp.Elements) (dockerxmpp.Elements, error) {
-  return dockerxmpp.Elements{}, nil
+  return deploy(elements, false)
 }
 
 func nameContainers() (dockerxmpp.Elements, error) {
@@ -152,6 +187,7 @@ func command(cmd *exec.Cmd) ([]string, error) {
     err	    error
   )
 
+  fmt.Println(cmd)
   if output, err = cmd.CombinedOutput(); err != nil {
     return result, err
   }

@@ -1,31 +1,39 @@
 package config
 
 import (
-	"github.com/lucasmbaia/go-xmpp"
+  "github.com/lucasmbaia/go-xmpp"
+  "forcloudy/etcd"
 )
 
 var (
-	EnvXmpp      Xmpp
-	EnvSingleton Singleton
+  EnvConfig	Config
+  EnvXmpp	Xmpp
+  EnvSingleton	Singleton
 )
 
 type Config struct {
-	UserMasterNode string `json:",omitempty"`
+  EtcdUsername	  string
+  EtcdPassword	  string
+  EtcdEndpoints	  []string
+  EtcdTimeout	  int32
+  UserMasterNode  string `json:",omitempty"`
 }
 
 type Xmpp struct {
-	Host                  string `json:"host,omitempty"`
-	Port                  string `json:"port,omitempty"`
-	MechanismAuthenticate string `json:"mechanismAuthenticate,omitempty"`
-	User                  string `json:"user,omitempty"`
-	Password              string `json:"password,omitempty"`
-	Room                  string `json:"room,omitempty"`
+  Host                  string `json:"host,omitempty"`
+  Port                  string `json:"port,omitempty"`
+  MechanismAuthenticate string `json:"mechanismAuthenticate,omitempty"`
+  User                  string `json:"user,omitempty"`
+  Password              string `json:"password,omitempty"`
+  Room                  string `json:"room,omitempty"`
 }
 
 type Singleton struct {
-	XmppConnection *xmpp.Client
+  XmppConnection *xmpp.Client
+  EtcdConnection  etcd.Client
 }
 
 func LoadConfig() {
-	loadXMPP()
+  loadXMPP()
+  loadETCD()
 }

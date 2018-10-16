@@ -74,3 +74,24 @@ func TestGenerateImage(t *testing.T) {
     t.Fatal(err)
   }
 }
+
+func TestDeploy(t *testing.T) {
+  var (
+    elements  dockerxmpp.Elements
+    err	      error
+  )
+
+  elements = dockerxmpp.Elements{
+    Name: "bematech",
+    Cpus: "0.1",
+    Memory: "15MB",
+    Image:  "alpine",
+    Ports:  []dockerxmpp.Ports{
+      {Port: 80},
+    },
+  }
+
+  if _, err = deploy(elements, true); err != nil {
+    t.Fatal(err)
+  }
+}
