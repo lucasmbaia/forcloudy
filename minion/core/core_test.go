@@ -14,7 +14,7 @@ func loadConfig() {
     Host: "172.16.95.179",
     Port: "5222",
     MechanismAuthenticate: xmpp.PLAIN,
-    User:     "minion-1@localhost",
+    User:     "minion-2@localhost",
     Password: "totvs@123",
     Room:     "minions@conference.localhost",
   }

@@ -66,7 +66,7 @@ func TestGenerateImage(t *testing.T) {
     err	      error
   )
 
-  elements.Name = "lucas"
+  elements.Name = "lucas_app-bematech"
   elements.BuildName = "hello_world"
   elements.Tag = "v1"
 
@@ -82,7 +82,7 @@ func TestDeploy(t *testing.T) {
   )
 
   elements = dockerxmpp.Elements{
-    Name: "bematech",
+    Name: "lucas_app-bematech",
     Cpus: "0.1",
     Memory: "15MB",
     Image:  "alpine",
@@ -92,6 +92,12 @@ func TestDeploy(t *testing.T) {
   }
 
   if _, err = deploy(elements, true); err != nil {
+    t.Fatal(err)
+  }
+}
+
+func TestRemoveContainer(t *testing.T) {
+  if err := removeContainer(dockerxmpp.Elements{Name: "bematech"}); err != nil {
     t.Fatal(err)
   }
 }

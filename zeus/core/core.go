@@ -11,6 +11,7 @@ import (
   "reflect"
   "strings"
   "sync"
+  "errors"
 )
 
 const (
@@ -164,6 +165,12 @@ func Iq(i interface{}) {
       }
       mutex.Unlock()
     }
+  } else {
+    mutex.Lock()
+    if _, ok := responseIQ[v.ID]; ok {
+      responseIQ[v.ID] <- ResponseIQ{Error: errors.New(v.Error.Text)}
+    }
+    mutex.Unlock()
   }
 
   fmt.Println(string(v.Query))

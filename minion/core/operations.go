@@ -3,10 +3,14 @@ package core
 import (
   "os/exec"
   "strings"
-  "errors"
   "fmt"
 
   dockerxmpp "github.com/lucasmbaia/go-xmpp/docker"
+  "forcloudy/minion/utils"
+)
+
+const (
+  TIMEOUT_DEFAULT_COMMAND = 60
 )
 
 var (
@@ -24,25 +28,45 @@ func generateImage(elements dockerxmpp.Elements) error {
     err	  error
   )
 
-  if _, err = command(exec.Command("docker", "exec", "-t", elements.Name, "mkdir", "/app")); err != nil {
+  if _, err = utils.Command("docker", []string{"exec", "-t", elements.Name, "mkdir", "/app"}, TIMEOUT_DEFAULT_COMMAND); err != nil {
     return err
   }
 
-  if _, err = command(exec.Command("docker", "exec", "-t", elements.Name, "apk", "add", "--no-cache", "bash")); err != nil {
+  /*if _, err = command(exec.Command("docker", "exec", "-t", elements.Name, "mkdir", "/app")); err != nil {
+    return err
+  }*/
+
+  if _, err = utils.Command("docker", []string{"exec", "-t", elements.Name, "apk", "add", "--no-cache", "bash"}, 120); err != nil {
     return err
   }
 
-  if _, err = command(exec.Command("docker", "cp", elements.BuildName, fmt.Sprintf("%s:/app", elements.Name))); err != nil {
+  /*if _, err = command(exec.Command("docker", "exec", "-t", elements.Name, "apk", "add", "--no-cache", "bash")); err != nil {
+    return err
+  }*/
+
+  if _, err = utils.Command("docker", []string{"cp", elements.BuildName, fmt.Sprintf("%s:/app", elements.Name)}, TIMEOUT_DEFAULT_COMMAND); err != nil {
     return err
   }
 
-  if _, err = command(exec.Command("docker", "commit", "--change", fmt.Sprintf("ENTRYPOINT [\"/app/%s\"]", elements.BuildName), elements.Name, fmt.Sprintf("%s/image:%s", elements.Name, elements.Tag))); err != nil {
+  /*if _, err = command(exec.Command("docker", "cp", elements.BuildName, fmt.Sprintf("%s:/app", elements.Name))); err != nil {
+    return err
+  }*/
+
+  if _, err = utils.Command("docker", []string{"commit", "--change", fmt.Sprintf("ENTRYPOINT [\"/app/%s\"]", elements.BuildName), elements.Name, fmt.Sprintf("%s/image:%s", elements.Name, elements.Tag)}, TIMEOUT_DEFAULT_COMMAND); err != nil {
     return err
   }
 
-  if _, err = command(exec.Command("docker", "save", fmt.Sprintf("%s/image:%s", elements.Name, elements.Tag), "-o", fmt.Sprintf("/images/%s.tar.gz", elements.Name))); err != nil {
+  /*if _, err = command(exec.Command("docker", "commit", "--change", fmt.Sprintf("ENTRYPOINT [\"/app/%s\"]", elements.BuildName), elements.Name, fmt.Sprintf("%s/image:%s", elements.Name, elements.Tag))); err != nil {
+    return err
+  }*/
+
+  if _, err = utils.Command("docker", []string{"save", fmt.Sprintf("%s/image:%s", elements.Name, elements.Tag), "-o", fmt.Sprintf("/images/%s.tar.gz", elements.Name)}, TIMEOUT_DEFAULT_COMMAND); err != nil {
     return err
   }
+
+  /*if _, err = command(exec.Command("docker", "save", fmt.Sprintf("%s/image:%s", elements.Name, elements.Tag), "-o", fmt.Sprintf("/images/%s.tar.gz", elements.Name))); err != nil {
+    return err
+  }*/
 
   return nil
 }
@@ -61,9 +85,13 @@ func loadImage(elements dockerxmpp.Elements) (dockerxmpp.Elements, error) {
 
   image = fmt.Sprintf("%s%s", elements.Path, elements.Name)
 
-  if _, err = command(exec.Command("docker", "load", "--input", image)); err != nil {
-    return dockerxmpp.Elements{}, errors.New(fmt.Sprintf("Error to load image %s", image))
+  if _, err = utils.Command("docker", []string{"load", "--input", image}, TIMEOUT_DEFAULT_COMMAND); err != nil {
+    return dockerxmpp.Elements{}, err
   }
+
+  /*if _, err = command(exec.Command("docker", "load", "--input", image)); err != nil {
+    return dockerxmpp.Elements{}, errors.New(fmt.Sprintf("Error to load image %s", image))
+  }*/
 
   return dockerxmpp.Elements{}, nil
 }
@@ -75,9 +103,13 @@ func existsImage(elements dockerxmpp.Elements) (dockerxmpp.Elements, error) {
     name    string
   )
 
-  if result, err = command(exec.Command("docker", "images", "--format", "{{.Repository}}:{{.Tag}}")); err != nil {
+  if result, err = utils.Command("docker", []string{"images", "--format", "{{.Repository}}:{{.Tag}}"}, TIMEOUT_DEFAULT_COMMAND); err != nil {
     return elements, err
   }
+
+  /*if result, err = command(exec.Command("docker", "images", "--format", "{{.Repository}}:{{.Tag}}")); err != nil {
+    return elements, err
+  }*/
 
   if len(strings.Split(elements.Name, ":")) == 1 {
     name = fmt.Sprintf("%s:latest", name)
@@ -127,11 +159,15 @@ func deploy(elements dockerxmpp.Elements, imageCreate bool) (dockerxmpp.Elements
   args = append(args, fmt.Sprintf("--memory=%s", elements.Memory))
   args = append(args, []string{"-d", elements.Image}...)
 
-  if result, err = command(exec.Command("docker", args...)); err != nil {
+  if result, err = utils.Command("docker", args, TIMEOUT_DEFAULT_COMMAND); err != nil {
     return dockerxmpp.Elements{}, err
   }
 
-  return dockerxmpp.Elements{ID: result[0]}, nil
+  /*if result, err = command(exec.Command("docker", args...)); err != nil {
+    return dockerxmpp.Elements{}, err
+  }*/
+
+  return dockerxmpp.Elements{ID: result[0], Name: elements.Name}, nil
 }
 
 func masterDeploy(elements dockerxmpp.Elements) (dockerxmpp.Elements, error) {
@@ -149,9 +185,13 @@ func nameContainers() (dockerxmpp.Elements, error) {
     err	      error
   )
 
-  if result, err = command(exec.Command("docker", "ps", "-a", "--format", "{{.Names}}")); err != nil {
+  if result, err = utils.Command("docker", []string{"ps", "-a", "--format", "{{.Names}}"}, TIMEOUT_DEFAULT_COMMAND); err != nil {
     return elements, err
   }
+
+  /*if result, err = command(exec.Command("docker", "ps", "-a", "--format", "{{.Names}}")); err != nil {
+    return elements, err
+  }*/
 
   for _, container := range result {
     elements.Containers = append(elements.Containers, dockerxmpp.Container{Name: container})
@@ -167,9 +207,13 @@ func totalContainers() (dockerxmpp.Elements, error) {
     err	      error
   )
 
-  if result, err = command(exec.Command("docker", "ps", "-a", "--format", "{{.Names}}")); err != nil {
+  if result, err = utils.Command("docker", []string{"ps", "-a", "--format", "{{.Names}}"}, TIMEOUT_DEFAULT_COMMAND); err != nil {
     return elements, err
   }
+
+  /*if result, err = command(exec.Command("docker", "ps", "-a", "--format", "{{.Names}}")); err != nil {
+    return elements, err
+  }*/
 
   elements.TotalContainers = len(result)
 
@@ -178,6 +222,22 @@ func totalContainers() (dockerxmpp.Elements, error) {
 
 func operationContainers(elements dockerxmpp.Elements) (dockerxmpp.Elements, error) {
   return dockerxmpp.Elements{}, nil
+}
+
+func removeContainer(elements dockerxmpp.Elements) error {
+  var (
+    err	error
+  )
+
+  if _, err = utils.Command("docker", []string{"rm", "-f", elements.Name}, TIMEOUT_DEFAULT_COMMAND); err != nil {
+    return err
+  }
+
+  /*if _, err = command(exec.Command("docker", "rm", "-f", elements.Name)); err != nil {
+    return err
+  }*/
+
+  return nil
 }
 
 func command(cmd *exec.Cmd) ([]string, error) {

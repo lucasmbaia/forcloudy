@@ -1,10 +1,12 @@
 #!/bin/bash
 
-commands=("docker exec -it $1 mkdir /app"
-	  "docker exec -it $1 apk add --no-cache bash"
-	  "docker cp $2 $1:/app"
-	  "docker commit --change='ENTRYPOINT [\"/app/$4\"]' $1 $1/image:$3"
-	  "docker save $1/image:$3 -o /images/$1.tar.gz")
+#commands=("docker exec -it $1 mkdir /app"
+#	  "docker exec -it $1 apk add --no-cache bash"
+#	  "docker cp $2 $1:/app"
+#	  "docker commit --change ENTRYPOINT [\"/app/$4\"] $1 $1/image:$3"
+#	  "docker save $1/image:$3 -o /images/$1.tar.gz")
+
+commands=("docker commit -c \"ENTRYPOINT ['/app/$4']\" $1 $1/image:$3")
 
 for command in "${commands[@]}"
 do

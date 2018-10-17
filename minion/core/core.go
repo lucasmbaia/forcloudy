@@ -152,6 +152,13 @@ func Iq(i interface{}) {
 	break
       }
 
+      var iq = dockerxmpp.IQ{
+	From: v.To,
+	To:   v.From,
+	Type: "result",
+	ID:   v.ID,
+      }
+
       fmt.Println(q.Action)
       switch q.Action{
       case EMPTY_STR:
@@ -164,6 +171,7 @@ func Iq(i interface{}) {
       case dockerxmpp.EXISTS_IMAGE:
 	elements, err = existsImage(q.Elements)
       case dockerxmpp.MASTER_DEPLOY:
+	fmt.Println("DEPLOY: ", q.Elements.Name)
 	var (
 	  ed  = make(chan EventsDocker, 1)
 	)
@@ -194,22 +202,28 @@ func Iq(i interface{}) {
 	elements, err = totalContainers()
       case dockerxmpp.OPERATION_CONTAINERS:
 	elements, err = operationContainers(q.Elements)
+      case dockerxmpp.REMOVE_CONTAINER:
+	err = removeContainer(q.Elements)
       default:
 	err = errors.New("Action is not exists")
       }
 
-      var iq = dockerxmpp.IQ{
-	From: v.To,
-	To:   v.From,
-	Type: "result",
-	ID:   v.ID,
-	Query:	dockerxmpp.QueryDocker{
+      if err == nil {
+	iq.Type = "result"
+	iq.Query = dockerxmpp.QueryDocker{
 	  Action:   q.Action,
 	  Elements: elements,
-	},
+	}
+      } else {
+	iq.Type = "error"
+	iq.Error = &dockerxmpp.IQError{
+	  Type:	"cancel",
+	  Text:	err.Error(),
+	}
       }
 
-      fmt.Println(iq)
+      fmt.Println(iq.To)
+      fmt.Println("ERROR: ", iq.Error)
       if err = config.EnvSingleton.XmppConnection.Send(iq); err != nil {
 	log.Println(err)
       }
