@@ -1,5 +1,6 @@
 package models
 
 type Models interface {
-	Post(interface{})
+  Get(interface{}) (interface{}, error)
+  Post(interface{}) error
 }
