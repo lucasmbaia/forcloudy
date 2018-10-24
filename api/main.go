@@ -1,12 +1,15 @@
 package main
 
 import (
+  "context"
+
   "github.com/kataras/iris"
   "github.com/kataras/iris/mvc"
   "github.com/lucasmbaia/forcloudy/api/controllers"
   "github.com/lucasmbaia/forcloudy/api/services"
   "github.com/lucasmbaia/forcloudy/api/config"
   "github.com/lucasmbaia/forcloudy/api/repository/gorm"
+  "github.com/lucasmbaia/forcloudy/api/core-xmpp"
 )
 
 func main() {
@@ -24,7 +27,23 @@ func main() {
     },
   }
 
+  config.EnvXmpp = config.Xmpp{
+    Host:		    "172.16.95.179",
+    Port:		    "5222",
+    MechanismAuthenticate:  "PLAIN",
+    User:		    "zeus@localhost",
+    Password:		    "totvs@123",
+    Room:		    "minions@conference.localhost",
+  }
+
   config.LoadConfig()
+
+  go func() {
+    if err := core.Run(context.Background()); err != nil {
+      panic(err)
+    }
+  }()
+
   app := iris.New()
 
   mvc.Configure(app.Party("/customers"), customers)

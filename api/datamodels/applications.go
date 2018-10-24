@@ -6,7 +6,7 @@ import (
 
 type ApplicationsFields struct {
   ID		  string    `json:"id,omitempty"`
-  Customer	  string    `json:"-"`
+  Customer	  string    `json:"customer,omitempty"`
   Name		  string    `json:"name,omitempty"`
   Description	  string    `json:"description,omitempty"`
   Cpus		  string    `json:"cpus,omitempty"`

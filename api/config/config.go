@@ -1,8 +1,8 @@
 package config
 
 import (
+  "github.com/lucasmbaia/go-xmpp"
   "github.com/lucasmbaia/forcloudy/etcd"
-  //"github.com/lucasmbaia/forcloudy/go-xmpp"
   "github.com/lucasmbaia/forcloudy/api/repository/gorm"
 )
 
@@ -34,11 +34,12 @@ type Database struct {
 }
 
 type Singletons struct {
-  //XmppConnection *xmpp.Client
-  EtcdConnection etcd.Client
-  DBConnection *gorm.Client
+  XmppConnection  *xmpp.Client
+  EtcdConnection  etcd.Client
+  DBConnection	  *gorm.Client
 }
 
 func LoadConfig() {
   loadDB()
+  loadXMPP()
 }

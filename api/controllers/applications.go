@@ -1,30 +1,23 @@
 package controllers
 
 import (
-	"github.com/kataras/iris"
-	"github.com/lucasmbaia/forcloudy/api/datamodels"
-	"github.com/lucasmbaia/forcloudy/api/services"
+  "github.com/lucasmbaia/forcloudy/api/datamodels"
 )
 
 type ApplicationController struct {
-	ResourceController
-
-	Service services.ResourceService
-	ctx     iris.Context
+  ResourceController
 }
 
-/*func (a *ApplicationController) BeginRequest(ctx iris.Context) {
-	  a.Service.Set("Customer", ctx.Params().Get("Customer"))
-  }
+func (a *ApplicationController) Get() ([]datamodels.ApplicationsFields, error) {
+  var (
+    results   interface{}
+    err	      error
+  )
 
-  func (a *ApplicationController) EndRequest(ctx iris.Context) {
-  }*/
-
-func (a *ApplicationController) Get() (results []datamodels.ApplicationsFields) {
-	return results
-	//return a.Service.Get()
+  results, err = a.Services.Get(a.Ctx)
+  return results.([]datamodels.ApplicationsFields), err
 }
 
 func (a *ApplicationController) GetByCustomer(customer string) (results []datamodels.ApplicationsFields) {
-	return results
+  return results
 }

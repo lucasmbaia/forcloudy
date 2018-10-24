@@ -4,6 +4,7 @@ import (
   "github.com/lucasmbaia/forcloudy/api/config"
   "github.com/lucasmbaia/forcloudy/api/datamodels"
   "github.com/lucasmbaia/forcloudy/api/models"
+  "github.com/lucasmbaia/forcloudy/api/repository"
 )
 
 type ApplicationsService interface {
@@ -12,8 +13,12 @@ type ApplicationsService interface {
 
 func NewApplicationService() CustomersService {
   return &resourceService{
-    fields:	&datamodels.ApplicationsFields{},
-    model:	models.NewApplications(config.EnvSingleton.DBConnection),
+    fields:	func() interface{} {
+      return &datamodels.ApplicationsFields{}
+    },
+    model:	func(r repository.Repositorier) models.Models {
+      return models.NewApplications(r)
+    },
     repository: config.EnvSingleton.DBConnection,
   }
 }

@@ -20,20 +20,22 @@ type CustomerController struct {
   return data
 }*/
 
-func (c *CustomerController) Get() ([]datamodels.CustomersFields, error) {
-  var (
+func (c *CustomerController) Get() (data []datamodels.CustomersFields, err error) {
+  /*var (
     results interface{}
     err	    error
   )
 
-  results, err = c.Services.Get()
-  return results.([]datamodels.CustomersFields), err
+  //results, err = c.Services.Get()
+  return results.([]datamodels.CustomersFields), err*/
+  c.Services.Get(c.Ctx)
+  return data, err
 }
 
 func (c *CustomerController) GetBy(id string) (customer datamodels.CustomersFields, found bool) {
   return datasource.Customers[1], true
 }
 
-func (c *CustomerController) Post() error {
-  return c.Services.Post()
+func (c *CustomerController) Post() (response datamodels.Response, error) {
+  return c.Services.Post(c.Ctx)
 }

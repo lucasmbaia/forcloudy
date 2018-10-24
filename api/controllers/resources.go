@@ -1,7 +1,7 @@
 package controllers
 
 import (
-  "fmt"
+  //"fmt"
   "github.com/kataras/iris"
   "github.com/kataras/iris/context"
   "github.com/lucasmbaia/forcloudy/api/services"
@@ -15,7 +15,7 @@ type ResourceController struct {
 }
 
 func (r *ResourceController) BeginRequest(ctx iris.Context) {
-  var (
+/*  var (
     fields  = r.Services.GetFields()
     err	    error
   )
@@ -30,7 +30,7 @@ func (r *ResourceController) BeginRequest(ctx iris.Context) {
     fmt.Println(err)
   }
 
-  r.Services.Print()
+  r.Services.Print()*/
   /*ctx.Params().Visit(func(name string, value string) {
     fmt.Println(name, value)
   })*/
@@ -46,7 +46,7 @@ func (r *ResourceController) setParams(url string, ctx *context.RequestParams) e
     matches []string
     params  = make(map[string]interface{})
     value   string
-    err     error
+    //err     error
   )
 
   matches = rgx.FindAllString(url, -1)
@@ -55,9 +55,9 @@ func (r *ResourceController) setParams(url string, ctx *context.RequestParams) e
     params[value] = ctx.Get(value)
   }
 
-  if err = r.Services.Set(params); err != nil {
+  /*if err = r.Services.Set(params); err != nil {
     return err
-  }
+  }*/
 
   return nil
 }
