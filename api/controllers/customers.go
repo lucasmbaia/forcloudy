@@ -1,12 +1,12 @@
 package controllers
 
 import (
-  "github.com/lucasmbaia/forcloudy/api/datamodels"
-  "github.com/lucasmbaia/forcloudy/api/datasource"
+	"github.com/lucasmbaia/forcloudy/api/datamodels"
+	"github.com/lucasmbaia/forcloudy/api/datasource"
 )
 
 type CustomerController struct {
-  ResourceController
+	ResourceController
 }
 
 /*func (c *CustomerController) Get() (results []datamodels.CustomersFields) {
@@ -20,22 +20,21 @@ type CustomerController struct {
   return data
 }*/
 
-func (c *CustomerController) Get() (data []datamodels.CustomersFields, err error) {
-  /*var (
-    results interface{}
-    err	    error
-  )
+func (c *CustomerController) Get() ([]datamodels.CustomersFields, error) {
+	var (
+		results interface{}
+		err     error
+	)
 
-  //results, err = c.Services.Get()
-  return results.([]datamodels.CustomersFields), err*/
-  c.Services.Get(c.Ctx)
-  return data, err
+	results, err = c.Services.Get(c.Ctx)
+	return results.([]datamodels.CustomersFields), err
 }
 
 func (c *CustomerController) GetBy(id string) (customer datamodels.CustomersFields, found bool) {
-  return datasource.Customers[1], true
+	return datasource.Customers[1], true
 }
 
-func (c *CustomerController) Post() (response datamodels.Response, error) {
-  return c.Services.Post(c.Ctx)
+func (c *CustomerController) Post() (datamodels.Response, error) {
+	//return response, err
+	return c.Services.Post(c.Ctx)
 }

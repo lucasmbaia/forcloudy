@@ -1,53 +1,62 @@
 package models
 
 import (
-  "fmt"
-  "errors"
-  //"github.com/lucasmbaia/forcloudy/api/config"
-  "github.com/lucasmbaia/forcloudy/api/datamodels"
-  "github.com/lucasmbaia/forcloudy/api/repository"
+	"errors"
+	"fmt"
+	//"github.com/lucasmbaia/forcloudy/api/config"
+	"github.com/lucasmbaia/forcloudy/api/datamodels"
+	"github.com/lucasmbaia/forcloudy/api/repository"
 )
 
 type Customers struct {
-  repository repository.Repositorier
+	repository repository.Repositorier
 }
 
 func NewCustomers(session repository.Repositorier) *Customers {
-  return &Customers{repository: session}
+	return &Customers{repository: session}
 }
 
 func (c *Customers) Post(values interface{}) error {
-  var (
-    customer  = values.(*datamodels.CustomersFields)
-    customers interface{}
-    err	      error
-  )
+	var (
+		customer  = values.(*datamodels.CustomersFields)
+		customers interface{}
+		err       error
+	)
 
-  if customers, err = c.Get(datamodels.CustomersFields{Name: customer.Name}); err != nil {
-    return nil
-  }
+	if customers, err = c.Get(datamodels.CustomersFields{Name: customer.Name}); err != nil {
+		return err
+	}
 
-  if len(customers.([]datamodels.CustomersFields)) > 0 {
-    return errors.New(fmt.Sprintf("Name of customer %s exists in database", customer.Name))
-  }
+	if len(customers.([]datamodels.CustomersFields)) > 0 {
+		return errors.New(fmt.Sprintf("Name of customer %s exists in database", customer.Name))
+	}
 
-  if err = c.repository.Create(customer); err != nil {
-    return err
-  }
+	if err = c.repository.Create(customer); err != nil {
+		return err
+	}
 
-  return nil
+	return nil
 }
 
-func (c *Customers) Get(filters interface{}) (i interface{}, err error) {
-  return i, err
+func (c *Customers) Get(filters interface{}) (interface{}, error) {
+	var (
+		entity = []datamodels.CustomersFields{}
+		err    error
+	)
+
+	if _, err = c.repository.Read(filters, &entity); err != nil {
+		return entity, err
+	}
+
+	return entity, err
 }
 
 func (c *Customers) Delete(conditions interface{}) error {
-  return nil
+	return nil
 }
 
 func (c *Customers) Put(fields, data interface{}) error {
-  return nil
+	return nil
 }
 
 /*func (c *Customers) Get(filters interface{}) (interface{}, error) {

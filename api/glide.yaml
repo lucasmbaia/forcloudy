@@ -1,0 +1,6 @@
+package: github.com/lucasmbaia/forcloudy/api
+import:
+- package: github.com/kataras/iris
+  version: 54eb51a8f90272cdda3c08f6b9e3d2adc0f793b1
+- package: github.com/lucasmbaia/forcloudy/etcd
+- package: github.com/lucasmbaia/go-xmpp

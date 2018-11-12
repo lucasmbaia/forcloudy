@@ -1,29 +1,29 @@
 package models
 
 import (
-  "github.com/lucasmbaia/forcloudy/api/repository"
+	"github.com/lucasmbaia/forcloudy/api/repository"
 )
 
 type Resources struct {
-  repository  repository.Repositorier
+	repository repository.Repositorier
 }
 
 func NewResources(session repository.Repositorier) *Resources {
-  return &Resources{repository: session}
+	return &Resources{repository: session}
 }
 
 func (r *Resources) Post(fields interface{}) error {
-  return nil
+	return nil
 }
 
 func (r *Resources) Get(filters interface{}) (i interface{}, err error) {
-  return i, err
+	return i, err
 }
 
 func (r *Resources) Delete(conditions interface{}) error {
-  return nil
+	return nil
 }
 
 func (r *Resources) Put(fields, data interface{}) error {
-  return nil
+	return nil
 }
