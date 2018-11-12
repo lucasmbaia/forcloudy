@@ -1,0 +1,4 @@
+package: github.com/lucasmbaia/forcloudy/etcd
+import:
+- package: github.com/etcd-io/etcd/client
+  version: ae25c5e1320f731a2ffaafbf756aca8b0a94dfab
