@@ -2,13 +2,14 @@ package core
 
 import (
 	"fmt"
-	"forcloudy/zeus/config"
+	"github.com/lucasmbaia/forcloudy/api/config"
 	"github.com/lucasmbaia/go-xmpp/docker"
 	"sync"
 )
 
 const (
-	IMAGE_DEFAULT = "alpine"
+	IMAGE_BASE  = "alpine"
+	PATH_IMAGES = "/images/"
 )
 
 type Deploy struct {
@@ -23,6 +24,7 @@ type Deploy struct {
 	Dns             string            `json:",omitempty"`
 	Image           string            `json:",omitempty"`
 	Build           string            `json:",omitempty"`
+	Path            string            `json:",omitempty"`
 }
 
 type Ports struct {
@@ -35,60 +37,74 @@ type MinionsCount struct {
 	TotalContainers int
 }
 
-func DeployAppication(d Deploy, iterator int, append bool) error {
+func DeployApplication(d Deploy, iterator int, first bool) error {
 	var (
 		image           string
-		keyApplication  string
-		err             error
-		exists          bool
 		applicationName string
+		exists          bool
+		gImage          = true
+		err             error
+		uploadImage     []string
+		listMinions     []string
 		wg              sync.WaitGroup
-		mainMinion      string
 		errc            = make(chan error, 1)
 		minionsCount    map[string]int
 	)
 
 	image = fmt.Sprintf("%s_app-%s/image:%s", d.Customer, d.ApplicationName, d.ImageVersion)
 	applicationName = fmt.Sprintf("%s_app-%s", d.Customer, d.ApplicationName)
-	keyApplication = fmt.Sprintf("/%s/%s", d.Customer, d.ApplicationName)
 	d.Image = image
 
-	if err = config.EnvSingleton.EtcdConnection.Set(keyApplication, d); err != nil {
-		return err
-	}
-
-	if !append {
+	if !first {
 		for minion, _ := range minions {
-			mainMinion = minion
-		}
-
-		if exists, err = existsImage(image, mainMinion); err != nil {
-			return err
-		}
-
-		if !exists {
-			if _, err = deploy(d, mainMinion, applicationName, IMAGE_DEFAULT, true); err != nil {
+			listMinions = append(listMinions, minion)
+			if exists, err = existsImage(image, minion); err != nil {
 				return err
 			}
 
-			if err = generateImage(applicationName, d.ImageVersion, d.Build, mainMinion); err != nil {
+			if exists {
+				gImage = false
+			} else {
+				uploadImage = append(uploadImage, minion)
+			}
+		}
+
+		if gImage {
+			if _, err = createContainer(d, listMinions[0], applicationName, IMAGE_BASE, true); err != nil {
 				return err
 			}
 
-			if err = removeContainer(applicationName, mainMinion); err != nil {
+			if err = generateImage(applicationName, d.ImageVersion, d.Path, d.Build, listMinions[0]); err != nil {
+				return err
+			}
+
+			if err = removeContainer(applicationName, listMinions[0]); err != nil {
+				return err
+			}
+
+			listMinions = listMinions[1:]
+		}
+
+		for _, minion := range uploadImage {
+			if err = loadImage(PATH_IMAGES, fmt.Sprintf("%s.tar.gz", applicationName), minion); err != nil {
 				return err
 			}
 		}
 	}
 
 	if len(minions) == 1 {
+		var minion string
+		for m, _ := range minions {
+			minion = m
+		}
+
 		wg.Add(d.TotalContainers)
 
 		for i := iterator; i <= d.TotalContainers; i++ {
 			var containerName = fmt.Sprintf("%s_app-%s-%d", d.Customer, d.ApplicationName, i)
 			go func(containerName string) {
 				fmt.Println("MANDOU: ", containerName)
-				if _, err = deploy(d, mainMinion, containerName, image, false); err != nil {
+				if _, err = createContainer(d, minion, containerName, image, false); err != nil {
 					errc <- err
 				}
 
@@ -115,7 +131,7 @@ func DeployAppication(d Deploy, iterator int, append bool) error {
 			for i := 0; i < value; i++ {
 				var containerName = fmt.Sprintf("%s_app-%s-%d", d.Customer, d.ApplicationName, iterator)
 				go func(containerName, minion string) {
-					if _, err = deploy(d, minion, containerName, image, false); err != nil {
+					if _, err = createContainer(d, minion, containerName, image, false); err != nil {
 						errc <- err
 					}
 
@@ -172,7 +188,7 @@ func existsImage(image, to string) (bool, error) {
 	return false, nil
 }
 
-func deploy(d Deploy, to, nameContainer, image string, imageCreate bool) (string, error) {
+func createContainer(d Deploy, to, name, image string, imageCreate bool) (string, error) {
 	var (
 		iq       docker.IQ
 		err      error
@@ -198,7 +214,7 @@ func deploy(d Deploy, to, nameContainer, image string, imageCreate bool) (string
 		To:              to,
 		Customer:        d.Customer,
 		ApplicationName: d.ApplicationName,
-		Name:            nameContainer,
+		Name:            name,
 		Cpus:            d.Cpus,
 		Memory:          d.Memory,
 		Ports:           ports,
@@ -223,7 +239,7 @@ func deploy(d Deploy, to, nameContainer, image string, imageCreate bool) (string
 	}
 }
 
-func generateImage(image, version, build, to string) error {
+func generateImage(image, version, path, build, to string) error {
 	var (
 		iq       docker.IQ
 		err      error
@@ -234,6 +250,7 @@ func generateImage(image, version, build, to string) error {
 		From:      config.EnvSingleton.XmppConnection.Jid,
 		To:        to,
 		Name:      image,
+		Path:      path,
 		BuildName: build,
 		Tag:       version,
 	}); err != nil {
@@ -283,15 +300,20 @@ func removeContainer(name, to string) error {
 	}
 }
 
-func totalContainersMinion(to string) (int, error) {
+func loadImage(path, name, to string) error {
 	var (
 		iq       docker.IQ
 		err      error
 		response = make(chan ResponseIQ, 1)
 	)
 
-	if iq, err = docker.TotalContainers(config.EnvSingleton.XmppConnection.Jid, to); err != nil {
-		return 0, err
+	if iq, err = docker.LoadImage(docker.Image{
+		From: config.EnvSingleton.XmppConnection.Jid,
+		To:   to,
+		Path: path,
+		Name: name,
+	}); err != nil {
+		return err
 	}
 
 	mutex.Lock()
@@ -299,12 +321,12 @@ func totalContainersMinion(to string) (int, error) {
 	mutex.Unlock()
 
 	if err = config.EnvSingleton.XmppConnection.Send(iq); err != nil {
-		return 0, err
+		return err
 	}
 
 	select {
 	case r := <-response:
-		return r.Elements.TotalContainers, r.Error
+		return r.Error
 	}
 }
 
@@ -350,6 +372,16 @@ func containersPerMinion(totalContainers int) (map[string]int, error) {
 		}
 	}
 
+	existsMinion := func(n string, m map[string]int) bool {
+		for key, _ := range m {
+			if key == n {
+				return true
+			}
+		}
+
+		return false
+	}
+
 	if !differente {
 		for _, value := range minionsCount {
 			minionsContainers[value.Name] = totalContainers / totalMinions
@@ -358,7 +390,54 @@ func containersPerMinion(totalContainers int) (map[string]int, error) {
 		if totalContainers%totalMinions != 0 {
 			minionsContainers[minionsCount[0].Name] += totalContainers % totalMinions
 		}
+	} else {
+		for count := 0; count < totalContainers; count++ {
+			if count > 0 && minionsCount[0].TotalContainers > minionsCount[1].TotalContainers {
+				for idx, _ := range minionsCount {
+					x := idx + 1
+					if x < len(minionsCount) && minionsCount[idx].TotalContainers > minionsCount[x].TotalContainers {
+						total := minionsCount[x].TotalContainers
+						name := minionsCount[x].Name
+						minionsCount[x] = MinionsCount{Name: minionsCount[idx].Name, TotalContainers: minionsCount[idx].TotalContainers}
+						minionsCount[idx] = MinionsCount{Name: name, TotalContainers: total}
+					}
+				}
+			}
+
+			if !existsMinion(minionsCount[0].Name, minionsContainers) {
+				minionsContainers[minionsCount[0].Name] = 1
+			} else {
+				minionsContainers[minionsCount[0].Name] += 1
+			}
+
+			minionsCount[0] = MinionsCount{Name: minionsCount[0].Name, TotalContainers: minionsCount[0].TotalContainers + 1}
+		}
 	}
 
 	return minionsContainers, nil
+}
+
+func totalContainersMinion(to string) (int, error) {
+	var (
+		iq       docker.IQ
+		err      error
+		response = make(chan ResponseIQ, 1)
+	)
+
+	if iq, err = docker.TotalContainers(config.EnvSingleton.XmppConnection.Jid, to); err != nil {
+		return 0, err
+	}
+
+	mutex.Lock()
+	responseIQ[iq.ID] = response
+	mutex.Unlock()
+
+	if err = config.EnvSingleton.XmppConnection.Send(iq); err != nil {
+		return 0, err
+	}
+
+	select {
+	case r := <-response:
+		return r.Elements.TotalContainers, r.Error
+	}
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/lucasmbaia/forcloudy/api/datamodels"
 	"github.com/lucasmbaia/forcloudy/api/repository"
+	"github.com/satori/go.uuid"
 )
 
 type Applications struct {
@@ -20,6 +21,11 @@ func (a *Applications) Post(values interface{}) error {
 		application  = values.(*datamodels.ApplicationsFields)
 		applications interface{}
 		err          error
+		customers    interface{}
+		image        string
+		imageID      uuid.UUID
+		containerID  uuid.UUID
+		iterator     = 1
 	)
 
 	if applications, err = a.Get(datamodels.ApplicationsFields{Name: application.Name, Customer: application.Customer}); err != nil {
@@ -30,8 +36,60 @@ func (a *Applications) Post(values interface{}) error {
 		return errors.New(fmt.Sprintf("Name of application %s exists in database", application.Name))
 	}
 
+	if customers, err = NewCustomers(a.repository).Get(
+		datamodels.CustomersFields{
+			ID: application.Customer,
+		},
+	); err != nil {
+		return err
+	} else {
+		if len(customers.([]datamodels.CustomersFields)) == 0 {
+			return errors.New("Invalid Customer")
+		}
+	}
+
+	image = fmt.Sprintf("%s_app-%s", customers.([]datamodels.CustomersFields)[0].Name, application.Name)
+	if imageID, err = uuid.NewV4(); err != nil {
+		return err
+	}
+
+	if err = NewImages(a.repository).Post(
+		&datamodels.ImagesFields{
+			ID:       imageID.String(),
+			Customer: application.Customer,
+			Name:     image,
+			Version:  "v1",
+		},
+	); err != nil {
+		return err
+	}
+
+	application.Image = imageID.String()
+	application.Status = "IN_PROGRESS"
+
 	if err = a.repository.Create(application); err != nil {
 		return err
+	}
+
+	for iterator <= application.TotalContainers {
+		if containerID, err = uuid.NewV4(); err != nil {
+			return err
+		}
+
+		if err = NewContainers(a.repository).Post(
+			&datamodels.ContainersFields{
+				ID:          containerID.String(),
+				Customer:    application.Customer,
+				Application: application.ID,
+				Name:        fmt.Sprintf("%s_app-%s-%d", customers.([]datamodels.CustomersFields)[0].Name, application.Name, iterator),
+				Status:      "IN_PROGRESS",
+				State:       "CREATING",
+			},
+		); err != nil {
+			return err
+		}
+
+		iterator++
 	}
 
 	return nil

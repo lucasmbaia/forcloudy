@@ -28,7 +28,7 @@ func main() {
 	}
 
 	config.EnvXmpp = config.Xmpp{
-		Host: "192.168.204.131",
+		Host: "192.168.204.129",
 		Port: "5222",
 		MechanismAuthenticate: "PLAIN",
 		User:     "zeus@localhost",
