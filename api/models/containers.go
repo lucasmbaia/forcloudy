@@ -46,3 +46,12 @@ func (c *Containers) Delete(conditions interface{}) error {
 func (c *Containers) Put(fields, data interface{}) error {
 	return nil
 }
+
+func (c *Containers) Patch(fields, data interface{}) error {
+	var (
+		conditions = fields.(*datamodels.ContainersFields)
+		entity     = data.(*datamodels.ContainersFields)
+	)
+
+	return c.repository.Update(conditions, entity)
+}

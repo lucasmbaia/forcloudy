@@ -3,9 +3,15 @@ package models
 import (
 	"errors"
 	"fmt"
+	"github.com/lucasmbaia/forcloudy/api/core-xmpp"
 	"github.com/lucasmbaia/forcloudy/api/datamodels"
 	"github.com/lucasmbaia/forcloudy/api/repository"
 	"github.com/satori/go.uuid"
+)
+
+const (
+	PATH_DEFAULT  = "/root/go/src/github.com/lucasmbaia/forcloudy/minion/core/"
+	BUILD_DEFAULT = "hello_world"
 )
 
 type Applications struct {
@@ -92,6 +98,7 @@ func (a *Applications) Post(values interface{}) error {
 		iterator++
 	}
 
+	go a.requestDeploy(application, customers.([]datamodels.CustomersFields)[0].Name)
 	return nil
 }
 
@@ -114,4 +121,76 @@ func (a *Applications) Delete(conditions interface{}) error {
 
 func (a *Applications) Put(fields, data interface{}) error {
 	return nil
+}
+
+func (a *Applications) Patch(fields, data interface{}) error {
+	var (
+		conditions = fields.(*datamodels.ApplicationsFields)
+		entity     = data.(*datamodels.ApplicationsFields)
+	)
+
+	return a.repository.Update(conditions, entity)
+}
+
+func (a *Applications) requestDeploy(application *datamodels.ApplicationsFields, customer string) {
+	var (
+		response = make(chan core.Container)
+		ports    []core.Ports
+		err      error
+		entity   = &datamodels.ApplicationsFields{Status: "COMPLETED"}
+	)
+
+	go func() {
+		for {
+			select {
+			case resp := <-response:
+				fmt.Println(resp)
+				var data = &datamodels.ContainersFields{Status: "COMPLETED", State: "CREATED"}
+
+				if resp.Error != nil {
+					data.Status = "ERROR"
+					data.State = "ERROR"
+				}
+
+				if err = NewContainers(a.repository).Patch(
+					&datamodels.ContainersFields{
+						Application: application.ID,
+						Name:        resp.Name,
+					},
+					data,
+				); err != nil {
+					fmt.Println(err)
+				}
+			}
+		}
+	}()
+
+	for _, port := range application.Ports {
+		ports = append(ports, core.Ports{Port: port.Port, Protocol: port.Protocol})
+	}
+
+	if err = core.DeployApplication(core.Deploy{
+		Customer:        customer,
+		ApplicationName: application.Name,
+		ImageVersion:    "v1",
+		Cpus:            application.Cpus,
+		Memory:          fmt.Sprintf("%dMB", ((application.Memory / 1024) / 1024)),
+		TotalContainers: application.TotalContainers,
+		Ports:           ports,
+		Path:            PATH_DEFAULT,
+		Build:           BUILD_DEFAULT,
+	}, 1, true, response); err != nil {
+		*entity.Error = err.Error()
+	}
+
+	if err = a.Patch(
+		&datamodels.ApplicationsFields{
+			ID: application.ID,
+		},
+		entity,
+	); err != nil {
+		fmt.Println(err)
+	}
+
+	return
 }

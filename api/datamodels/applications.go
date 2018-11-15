@@ -13,9 +13,11 @@ type ApplicationsFields struct {
 	Memory          int                `json:"memory,omitempty"`
 	TotalContainers int                `json:"totalContainers,omitempty"`
 	Image           string             `json:"image,omitempty"`
+	Dns             string             `json:"dns,omitempty"`
 	Ports           []Ports            `json:"ports,omitempty" gorm:"association_foreignkey:ID;foreignkey:Application"`
 	Containers      []ContainersFields `json:"containers,omitempty" gorm:"association_foreignkey:ID;foreignkey:Application"`
 	Status          string             `json:"status,omitempty"`
+	Error           *string            `json:"error,omitempty"`
 	CreatedAt       time.Time          `json:"created_at,omitempty"`
 }
 

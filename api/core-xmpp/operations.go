@@ -37,7 +37,12 @@ type MinionsCount struct {
 	TotalContainers int
 }
 
-func DeployApplication(d Deploy, iterator int, first bool) error {
+type Container struct {
+	Name  string
+	Error error
+}
+
+func DeployApplication(d Deploy, iterator int, first bool, assyncContainers chan<- Container) error {
 	var (
 		image           string
 		applicationName string
@@ -55,7 +60,7 @@ func DeployApplication(d Deploy, iterator int, first bool) error {
 	applicationName = fmt.Sprintf("%s_app-%s", d.Customer, d.ApplicationName)
 	d.Image = image
 
-	if !first {
+	if first {
 		for minion, _ := range minions {
 			listMinions = append(listMinions, minion)
 			if exists, err = existsImage(image, minion); err != nil {
@@ -103,11 +108,16 @@ func DeployApplication(d Deploy, iterator int, first bool) error {
 		for i := iterator; i <= d.TotalContainers; i++ {
 			var containerName = fmt.Sprintf("%s_app-%s-%d", d.Customer, d.ApplicationName, i)
 			go func(containerName string) {
-				fmt.Println("MANDOU: ", containerName)
+				var c = Container{Name: containerName}
 				if _, err = createContainer(d, minion, containerName, image, false); err != nil {
+					c.Error = err
 					errc <- err
 				}
 
+				fmt.Println("PASSOU AQUI PORRA", containerName)
+				if assyncContainers != nil {
+					assyncContainers <- c
+				}
 				wg.Done()
 			}(containerName)
 		}
@@ -131,10 +141,15 @@ func DeployApplication(d Deploy, iterator int, first bool) error {
 			for i := 0; i < value; i++ {
 				var containerName = fmt.Sprintf("%s_app-%s-%d", d.Customer, d.ApplicationName, iterator)
 				go func(containerName, minion string) {
+					var c = Container{Name: containerName}
 					if _, err = createContainer(d, minion, containerName, image, false); err != nil {
+						c.Error = err
 						errc <- err
 					}
 
+					if assyncContainers != nil {
+						assyncContainers <- c
+					}
 					wg.Done()
 				}(containerName, key)
 

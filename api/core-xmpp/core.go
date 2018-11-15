@@ -121,7 +121,10 @@ func Presence(i interface{}) {
 							}
 
 							minions[item.Jid] = Minions{Containers: containers}
-							fmt.Println("MINIONS: ", minions)
+
+							if err = config.EnvSingleton.XmppConnection.SendPresenceMuc(item.Jid); err != nil {
+								return
+							}
 						}
 					}()
 				}

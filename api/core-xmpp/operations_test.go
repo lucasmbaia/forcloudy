@@ -113,7 +113,7 @@ func Test_DeployApplication(t *testing.T) {
 		},
 		Path:  "/root/go/src/github.com/lucasmbaia/forcloudy/minion/core/",
 		Build: "hello_world",
-	}, 11, false); err != nil {
+	}, 11, true, nil); err != nil {
 		t.Fatal(err)
 	}
 }

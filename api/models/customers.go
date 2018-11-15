@@ -59,6 +59,10 @@ func (c *Customers) Put(fields, data interface{}) error {
 	return nil
 }
 
+func (c *Customers) Patch(fields, data interface{}) error {
+	return nil
+}
+
 /*func (c *Customers) Get(filters interface{}) (interface{}, error) {
   var (
     entity  = []datamodels.CustomersFields{}

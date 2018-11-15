@@ -46,3 +46,7 @@ func (i *Images) Delete(conditions interface{}) error {
 func (i *Images) Put(fields, data interface{}) error {
 	return nil
 }
+
+func (i *Images) Patch(fields, data interface{}) error {
+	return nil
+}

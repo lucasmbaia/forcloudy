@@ -27,3 +27,7 @@ func (r *Resources) Delete(conditions interface{}) error {
 func (r *Resources) Put(fields, data interface{}) error {
 	return nil
 }
+
+func (r *Resources) Patch(fields, data interface{}) error {
+	return nil
+}

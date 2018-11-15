@@ -108,8 +108,8 @@ func initXMPP(ctx context.Context) error {
 		return err
 	}
 
-	//config.EnvSingleton.XmppConnection.DiscoItems("conference.localhost")
-	//config.EnvSingleton.XmppConnection.DiscoItems("minions@conference.localhost")
+	config.EnvSingleton.XmppConnection.DiscoItems("conference.localhost")
+	config.EnvSingleton.XmppConnection.DiscoItems("minions@conference.localhost")
 
 	if err = config.EnvSingleton.XmppConnection.MucPresence(config.EnvXmpp.Room); err != nil {
 		return err
