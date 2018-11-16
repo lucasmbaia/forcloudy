@@ -38,7 +38,10 @@ type MinionsCount struct {
 }
 
 type Container struct {
-	Name  string
+	ID      string
+	Name    string
+	Address string
+	//PortsContainer map[string][]string
 	Error error
 }
 
@@ -203,7 +206,7 @@ func existsImage(image, to string) (bool, error) {
 	return false, nil
 }
 
-func createContainer(d Deploy, to, name, image string, imageCreate bool) (string, error) {
+func createContainer(d Deploy, to, name, image string, imageCreate bool) (Container, error) {
 	var (
 		iq       docker.IQ
 		err      error
@@ -237,7 +240,7 @@ func createContainer(d Deploy, to, name, image string, imageCreate bool) (string
 		Image:           image,
 		CreateImage:     imageCreate,
 	}); err != nil {
-		return EMPTY_STR, err
+		return Container{}, err
 	}
 
 	mutex.Lock()
@@ -245,12 +248,17 @@ func createContainer(d Deploy, to, name, image string, imageCreate bool) (string
 	mutex.Unlock()
 
 	if err = config.EnvSingleton.XmppConnection.Send(iq); err != nil {
-		return EMPTY_STR, err
+		return Container{}, err
 	}
 
 	select {
 	case r := <-response:
-		return r.Elements.ID, r.Error
+		return Container{
+			ID:   r.Elements.ID,
+			Name: name,
+			//PortsContainer: r.Elements.PortsContainer,
+			Address: r.Elements.Address,
+		}, r.Error
 	}
 }
 

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"github.com/lucasmbaia/forcloudy/logging"
 	"github.com/lucasmbaia/go-xmpp"
 )
 
@@ -20,12 +21,15 @@ type Xmpp struct {
 	User                  string `json:"user,omitempty"`
 	Password              string `json:"password,omitempty"`
 	Room                  string `json:"room,omitempty"`
+	MasterUser            string `zeus:"masterUser,omitempty"`
 }
 
 type Singleton struct {
 	XmppConnection *xmpp.Client
+	Log            *logging.Logger
 }
 
 func LoadConfig() {
+	LoadLog(logging.INFO)
 	loadXMPP()
 }

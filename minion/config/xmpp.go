@@ -1,13 +1,15 @@
 package config
 
 import (
+	"github.com/lucasmbaia/forcloudy/minion/log"
 	"github.com/lucasmbaia/go-xmpp"
-	"log"
+	_log "log"
 )
 
 func loadXMPP() {
 	var err error
-	log.Println("loadXMPP")
+
+	EnvSingleton.Log.Infofc(log.TEMPLATE_LOAD, "Config", "loadXMPP", EnvXmpp)
 
 	if EnvSingleton.XmppConnection, err = xmpp.NewClient(xmpp.Options{
 		Host:      EnvXmpp.Host,
@@ -16,6 +18,6 @@ func loadXMPP() {
 		User:      EnvXmpp.User,
 		Password:  EnvXmpp.Password,
 	}); err != nil {
-		log.Fatal(err)
+		_log.Fatal(err)
 	}
 }

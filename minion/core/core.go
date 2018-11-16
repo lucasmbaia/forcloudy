@@ -8,17 +8,20 @@ import (
 	"fmt"
 	"github.com/lucasmbaia/forcloudy/minion/config"
 	"github.com/lucasmbaia/forcloudy/minion/docker"
+	"github.com/lucasmbaia/forcloudy/minion/log"
+	"github.com/lucasmbaia/forcloudy/minion/utils"
 	"github.com/lucasmbaia/go-xmpp"
 	dockerxmpp "github.com/lucasmbaia/go-xmpp/docker"
-	"log"
+	"reflect"
+	"strings"
 	"time"
-	//"reflect"
-	//"strings"
 )
 
 const (
 	EMPTY_STR        = ""
 	JABBER_IQ_DOCKER = "jabber:iq:docker"
+	UNAVAILABLE      = "unavailable"
+	AVAILABLE        = "available"
 )
 
 var (
@@ -77,7 +80,8 @@ func watchEvents(ctx context.Context) {
 				var ev docker.Events
 
 				if err = json.Unmarshal(msg, &ev); err != nil {
-					log.Panic(err)
+					config.EnvSingleton.Log.Errorf(log.TEMPLATE_ACTION, "Core", "watchEvents", "Unmarshal Event Docker", err.Error())
+					break
 				}
 
 				if ev.Status == "die" {
@@ -88,9 +92,10 @@ func watchEvents(ctx context.Context) {
 					}
 				}
 
-				log.Println(ev)
+				config.EnvSingleton.Log.Debugfc(log.TEMPLATE_ACTION, "Core", "watchEvents", "Event Docker", ev)
 			case e := <-errc:
-				log.Panic(e)
+				config.EnvSingleton.Log.Errorf(log.TEMPLATE_ACTION, "Core", "watchEvents", "Receive error of docker events", e.Error())
+				watchEvents(ctx)
 			}
 		}
 	}()
@@ -123,13 +128,27 @@ func Message(i interface{}) {
 }
 
 func Presence(i interface{}) {
-	var v = i.(*xmpp.Presence)
+	var (
+		p      = i.(*xmpp.Presence)
+		idx    int
+		exists bool
+	)
 
-	/*if !reflect.DeepEqual(v.User, xmpp.MucUser{}) && !strings.Contains(v.From, "minion-1") && strings.Contains(v.From, config.EnvXmpp.Room) {
-	  }*/
-
-	fmt.Println("PRESENCE")
-	fmt.Println(v)
+	if !reflect.DeepEqual(p.User, xmpp.MucUser{}) && strings.Contains(p.From, config.EnvXmpp.MasterUser) && strings.Contains(p.From, config.EnvXmpp.Room) {
+		for _, item := range p.User.Item {
+			if p.Type == UNAVAILABLE {
+				config.EnvSingleton.Log.Infof(log.TEMPLATE_PRESENCE, item.Jid, UNAVAILABLE)
+				if idx, exists = utils.ExistsStringElement(item.Jid, masterNode); exists {
+					masterNode = append(masterNode[idx:], masterNode[:idx+1]...)
+				}
+			} else {
+				config.EnvSingleton.Log.Infof(log.TEMPLATE_PRESENCE, item.Jid, AVAILABLE)
+				if _, exists = utils.ExistsStringElement(item.Jid, masterNode); !exists {
+					masterNode = append(masterNode, item.Jid)
+				}
+			}
+		}
+	}
 }
 
 func Iq(i interface{}) {
@@ -141,14 +160,17 @@ func Iq(i interface{}) {
 		elements dockerxmpp.Elements
 	)
 
-	if v.Type != "error" {
+	if v.Type != "error" && len(v.Query) > 0 {
 		if err = xml.Unmarshal(v.Query, &query); err != nil {
-			log.Println(err)
+			config.EnvSingleton.Log.Errorf(log.TEMPLATE_ACTION, "Core", "Iq", "Unmarshal IQ", string(v.Query))
+			return
 		}
 
 		switch query.XMLName.Space {
 		case JABBER_IQ_DOCKER:
+			config.EnvSingleton.Log.Debugf(log.TEMPLATE_ACTION, "Core", "Iq", "Receive Docker IQ", string(v.Query))
 			if err = xml.Unmarshal(v.Query, &q); err != nil {
+				config.EnvSingleton.Log.Errorf(log.TEMPLATE_ACTION, "Core", "Iq", "Unmarshal IQ Docker", err.Error())
 				break
 			}
 
@@ -159,7 +181,6 @@ func Iq(i interface{}) {
 				ID:   v.ID,
 			}
 
-			fmt.Println(q.Action)
 			switch q.Action {
 			case EMPTY_STR:
 				err = errors.New("Action is not informed")
@@ -171,9 +192,10 @@ func Iq(i interface{}) {
 			case dockerxmpp.EXISTS_IMAGE:
 				elements, err = existsImage(q.Elements)
 			case dockerxmpp.MASTER_DEPLOY:
-				fmt.Println("DEPLOY: ", q.Elements.Name)
 				var (
-					ed = make(chan EventsDocker, 1)
+					ed      = make(chan EventsDocker, 1)
+					ports   dockerxmpp.Elements
+					address dockerxmpp.Elements
 				)
 
 				eventsDocker[q.Elements.Name] = ed
@@ -194,6 +216,17 @@ func Iq(i interface{}) {
 					err = r.Error
 				}
 				delete(eventsDocker, q.Elements.Name)
+
+				if address, err = addressContainer(q.Elements); err != nil {
+					break
+				}
+
+				if ports, err = portsContainer(q.Elements); err != nil {
+					break
+				}
+
+				elements.PortsContainer = ports.PortsContainer
+				elements.Address = address.Address
 			case dockerxmpp.APPEND_DEPLOY:
 				elements, err = appendDeploy(q.Elements)
 			case dockerxmpp.NAME_CONTAINERS:
@@ -225,10 +258,8 @@ func Iq(i interface{}) {
 			fmt.Println(iq.To)
 			fmt.Println("ERROR: ", iq.Error)
 			if err = config.EnvSingleton.XmppConnection.Send(iq); err != nil {
-				log.Println(err)
+				config.EnvSingleton.Log.Errorf(log.TEMPLATE_ACTION, "Core", "Iq", "Send message XMPP", err.Error())
 			}
 		}
 	}
-
-	fmt.Println(string(v.Query))
 }

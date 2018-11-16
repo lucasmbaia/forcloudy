@@ -17,6 +17,7 @@ func loadConfig() {
 		User:     "minion-1@localhost",
 		Password: "totvs@123",
 		Room:     "minions@conference.localhost",
+		MasterUser: 	"zeus",
 	}
 
 	config.LoadConfig()

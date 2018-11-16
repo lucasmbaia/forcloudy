@@ -49,7 +49,7 @@ func Test_CreateContainer(t *testing.T) {
 	go config.EnvSingleton.XmppConnection.Receiver(context.Background())
 	config.EnvSingleton.XmppConnection.RegisterHandler(xmpp.IQ_HANDLER, Iq)
 
-	if id, err := createContainer(Deploy{
+	if container, err := createContainer(Deploy{
 		Customer:        "lucas",
 		ApplicationName: "bematech",
 		ImageVersion:    "v1",
@@ -59,10 +59,10 @@ func Test_CreateContainer(t *testing.T) {
 		Ports: []Ports{
 			{Port: 80, Protocol: "http"},
 		},
-	}, "minion-1@localhost/156737758703653069221218", "lucas_app-bematech", "alpine", true); err != nil {
+	}, "minion-1@localhost/92160728585779128481234", "lucas_app-bematech", "alpine", true); err != nil {
 		t.Fatal(err)
 	} else {
-		fmt.Println(id)
+		fmt.Println(container)
 	}
 }
 
