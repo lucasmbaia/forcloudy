@@ -38,11 +38,11 @@ type MinionsCount struct {
 }
 
 type Container struct {
-	ID      string
-	Name    string
-	Address string
-	//PortsContainer map[string][]string
-	Error error
+	ID             string
+	Name           string
+	Address        string
+	PortsContainer []docker.PortsContainer
+	Error          error
 }
 
 func DeployApplication(d Deploy, iterator int, first bool, assyncContainers chan<- Container) error {
@@ -254,10 +254,10 @@ func createContainer(d Deploy, to, name, image string, imageCreate bool) (Contai
 	select {
 	case r := <-response:
 		return Container{
-			ID:   r.Elements.ID,
-			Name: name,
-			//PortsContainer: r.Elements.PortsContainer,
-			Address: r.Elements.Address,
+			ID:             r.Elements.ID,
+			Name:           name,
+			PortsContainer: r.Elements.PortsContainer,
+			Address:        r.Elements.Address,
 		}, r.Error
 	}
 }

@@ -87,3 +87,13 @@ func (c Client) Get(key string, value interface{}) error {
 
 	return nil
 }
+
+func (c Client) Exists(key string) bool {
+	var err error
+
+	if _, err = c.cli.Get(c.ctx, key, nil); err != nil {
+		return false
+	}
+
+	return true
+}

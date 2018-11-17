@@ -59,7 +59,7 @@ func Test_CreateContainer(t *testing.T) {
 		Ports: []Ports{
 			{Port: 80, Protocol: "http"},
 		},
-	}, "minion-1@localhost/92160728585779128481234", "lucas_app-bematech", "alpine", true); err != nil {
+	}, "minion-1@localhost/167364761069969351131298", "lucas_app-bematech", "alpine", true); err != nil {
 		t.Fatal(err)
 	} else {
 		fmt.Println(container)

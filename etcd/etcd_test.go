@@ -61,3 +61,14 @@ func TestGet(t *testing.T) {
 
 	fmt.Println(s)
 }
+
+func TestExists(t *testing.T) {
+	var client Client
+	var err error
+
+	if client, err = connect(); err != nil {
+		t.Fatal(err)
+	}
+
+	client.Exists("/haproxy/chaba-22")
+}
