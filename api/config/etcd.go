@@ -1,11 +1,11 @@
 package config
 
-/*import (
+import (
 	"context"
 	"github.com/lucasmbaia/forcloudy/etcd"
 )
 
-func loadETCD() {
+func LoadETCD() {
 	var err error
 
 	if EnvSingleton.EtcdConnection, err = etcd.NewClient(context.Background(), etcd.Config{
@@ -14,4 +14,4 @@ func loadETCD() {
 	}); err != nil {
 		panic(err)
 	}
-}*/
+}
