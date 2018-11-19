@@ -36,6 +36,12 @@ func main() {
 		Room:     "minions@conference.localhost",
 	}
 
+	config.EnvConfig = config.Config{
+		EtcdEndpoints: []string{"http://192.168.204.128:2379"},
+		EtcdTimeout:   10,
+		Hostname:      "minion-1",
+	}
+
 	config.LoadConfig()
 
 	go func() {

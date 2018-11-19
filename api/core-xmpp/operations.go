@@ -42,6 +42,7 @@ type Container struct {
 	Name           string
 	Address        string
 	PortsContainer []docker.PortsContainer
+	Minion         string
 	Error          error
 }
 
@@ -111,13 +112,12 @@ func DeployApplication(d Deploy, iterator int, first bool, assyncContainers chan
 		for i := iterator; i <= d.TotalContainers; i++ {
 			var containerName = fmt.Sprintf("%s_app-%s-%d", d.Customer, d.ApplicationName, i)
 			go func(containerName string) {
-				var c = Container{Name: containerName}
-				if _, err = createContainer(d, minion, containerName, image, false); err != nil {
+				var c Container
+				if c, err = createContainer(d, minion, containerName, image, false); err != nil {
 					c.Error = err
 					errc <- err
 				}
 
-				fmt.Println("PASSOU AQUI PORRA", containerName)
 				if assyncContainers != nil {
 					assyncContainers <- c
 				}
@@ -144,8 +144,8 @@ func DeployApplication(d Deploy, iterator int, first bool, assyncContainers chan
 			for i := 0; i < value; i++ {
 				var containerName = fmt.Sprintf("%s_app-%s-%d", d.Customer, d.ApplicationName, iterator)
 				go func(containerName, minion string) {
-					var c = Container{Name: containerName}
-					if _, err = createContainer(d, minion, containerName, image, false); err != nil {
+					var c Container
+					if c, err = createContainer(d, minion, containerName, image, false); err != nil {
 						c.Error = err
 						errc <- err
 					}
@@ -258,6 +258,7 @@ func createContainer(d Deploy, to, name, image string, imageCreate bool) (Contai
 			Name:           name,
 			PortsContainer: r.Elements.PortsContainer,
 			Address:        r.Elements.Address,
+			Minion:         r.Elements.Minion,
 		}, r.Error
 	}
 }

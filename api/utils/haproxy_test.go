@@ -18,13 +18,14 @@ func init() {
 }
 
 func Test_HttpAndHttps(t *testing.T) {
-	if conf, err := httpAndHttps(httpHttps{
+	if conf, err := httpAndHttps(infos{
 		ApplicationName:   "httpAndHttps",
 		ContainerName:     "lucas_app-httpAndHttps-1",
 		PortSource:        "80",
 		PortsDestionation: []string{"32987"},
 		AddressContainer:  "127.0.0.1",
 		Dns:               "httpAndHttps.local",
+		Minion:            "minion-1",
 	}); err != nil {
 		t.Fatal(err)
 	} else {
@@ -33,5 +34,42 @@ func Test_HttpAndHttps(t *testing.T) {
 		} else {
 			fmt.Println(string(body))
 		}
+	}
+}
+
+func Test_TcpAndUdp(t *testing.T) {
+	if conf, err := tcpAndUdp(infos{
+		Customer:          "lucas",
+		ApplicationName:   "tcpAndUdp",
+		ContainerName:     "lucas_app-tcpAndUdp-1",
+		PortSource:        "5466",
+		PortsDestionation: []string{"32987"},
+		AddressContainer:  "127.0.0.1",
+		Dns:               "tcpAndUdp.local",
+		Protocol:          "tcp",
+		Minion:            "minion-1",
+	}); err != nil {
+		t.Fatal(err)
+	} else {
+		if body, err := json.Marshal(conf); err != nil {
+			t.Fatal(err)
+		} else {
+			fmt.Println(string(body))
+		}
+	}
+}
+
+func Test_GenerateConf(t *testing.T) {
+	if err := GenerateConf(Haproxy{
+		Customer:         "lucas",
+		ApplicationName:  "teste",
+		ContainerName:    "teste-1",
+		PortsContainer:   map[string][]string{"5233": []string{"34999"}},
+		Protocol:         map[string]string{"5233": "tcp"},
+		AddressContainer: "127.0.0.1",
+		Dns:              "teste.local",
+		Minion:           "minion-1",
+	}); err != nil {
+		t.Fatal(err)
 	}
 }

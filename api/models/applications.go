@@ -6,7 +6,9 @@ import (
 	"github.com/lucasmbaia/forcloudy/api/core-xmpp"
 	"github.com/lucasmbaia/forcloudy/api/datamodels"
 	"github.com/lucasmbaia/forcloudy/api/repository"
+	"github.com/lucasmbaia/forcloudy/api/utils"
 	"github.com/satori/go.uuid"
+	"strconv"
 )
 
 const (
@@ -145,7 +147,11 @@ func (a *Applications) requestDeploy(application *datamodels.ApplicationsFields,
 			select {
 			case resp := <-response:
 				fmt.Println(resp)
-				var data = &datamodels.ContainersFields{Status: "COMPLETED", State: "CREATED"}
+				var (
+					data           = &datamodels.ContainersFields{Status: "COMPLETED", State: "CREATED"}
+					portsContainer = make(map[string][]string)
+					protocol       = make(map[string]string)
+				)
 
 				if resp.Error != nil {
 					data.Status = "ERROR"
@@ -159,6 +165,27 @@ func (a *Applications) requestDeploy(application *datamodels.ApplicationsFields,
 					},
 					data,
 				); err != nil {
+					fmt.Println(err)
+				}
+
+				for _, port := range resp.PortsContainer {
+					portsContainer[port.Source] = port.Destinations
+				}
+
+				for _, port := range application.Ports {
+					protocol[strconv.Itoa(port.Port)] = port.Protocol
+				}
+
+				if err = utils.GenerateConf(utils.Haproxy{
+					Customer:         customer,
+					ApplicationName:  application.Name,
+					ContainerName:    resp.Name,
+					PortsContainer:   portsContainer,
+					Protocol:         protocol,
+					AddressContainer: resp.Address,
+					Dns:              application.Dns,
+					Minion:           resp.Minion,
+				}); err != nil {
 					fmt.Println(err)
 				}
 			}

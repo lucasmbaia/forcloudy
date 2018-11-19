@@ -44,4 +44,5 @@ type Singletons struct {
 func LoadConfig() {
 	loadDB()
 	loadXMPP()
+	LoadETCD()
 }

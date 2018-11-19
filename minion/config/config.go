@@ -3,15 +3,19 @@ package config
 import (
 	"github.com/lucasmbaia/forcloudy/logging"
 	"github.com/lucasmbaia/go-xmpp"
+	_log "log"
+	"os"
 )
 
 var (
 	EnvXmpp      Xmpp
 	EnvSingleton Singleton
+	EnvConfig    Config
 )
 
 type Config struct {
 	UserMasterNode string `json:",omitempty"`
+	Hostname       string
 }
 
 type Xmpp struct {
@@ -30,6 +34,12 @@ type Singleton struct {
 }
 
 func LoadConfig() {
+	var err error
+
 	LoadLog(logging.INFO)
 	loadXMPP()
+
+	if EnvConfig.Hostname, err = os.Hostname(); err != nil {
+		_log.Panic(err)
+	}
 }

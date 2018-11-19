@@ -25,11 +25,13 @@ const (
 )
 
 var (
-	masterNode        []string
-	containers        []docker.Containers
-	containers_deploy []string
-	containers_die    []string
-	eventsDocker      map[string]chan EventsDocker
+	masterNode           []string
+	containers           []docker.Containers
+	containers_deploy    []string
+	containers_die       []string
+	eventsDocker         map[string]chan EventsDocker
+	containersDie        chan docker.Containers
+	retryDeployContainer map[string]int
 )
 
 type EventsDocker struct {
@@ -38,6 +40,7 @@ type EventsDocker struct {
 
 func init() {
 	eventsDocker = make(map[string]chan EventsDocker)
+	retryDeployContainer = make(map[string]int)
 }
 
 func Run(ctx context.Context) error {
@@ -88,6 +91,17 @@ func watchEvents(ctx context.Context) {
 					if ev.Actor.Attributes.Name != EMPTY_STR {
 						if _, ok := eventsDocker[ev.Actor.Attributes.Name]; ok {
 							eventsDocker[ev.Actor.Attributes.Name] <- EventsDocker{Error: errors.New("Erro to create container")}
+						} else {
+							for _, container := range containers {
+								if container.Name == ev.Actor.Attributes.Name {
+									if container.Image == EMPTY_STR {
+										container.Image = ev.Actor.Attributes.Image
+									}
+								}
+
+								containersDie <- container
+								break
+							}
 						}
 					}
 				}
@@ -96,6 +110,23 @@ func watchEvents(ctx context.Context) {
 			case e := <-errc:
 				config.EnvSingleton.Log.Errorf(log.TEMPLATE_ACTION, "Core", "watchEvents", "Receive error of docker events", e.Error())
 				watchEvents(ctx)
+			}
+		}
+	}()
+}
+
+func checkContainerDie(ctx context.Context) {
+	go func() {
+		for {
+			select {
+			case c := <-containersDie:
+				if _, ok := retryDeployContainer[c.Name]; !ok {
+					retryDeployContainer[c.Name] = 0
+				}
+
+				var cn = strings.Split(c.Name, "_app-")
+				var customer = cn[0]
+				var application_name = strings.Join(strings.Split(cn[1], "-")[:-1], "-")
 			}
 		}
 	}()
@@ -227,6 +258,19 @@ func Iq(i interface{}) {
 
 				elements.PortsContainer = ports.PortsContainer
 				elements.Address = address.Address
+				elements.Minion = config.EnvConfig.Hostname
+
+				if err != nil {
+					var c []docker.Containers
+					if c, err = utils.ListAllContainers(q.Elements.Name); err == nil {
+						containers = append(containers, c...)
+					} else {
+						containers = append(containers, docker.Containers{
+							ID:   elements.ID,
+							Name: q.Elements.Name,
+						})
+					}
+				}
 			case dockerxmpp.APPEND_DEPLOY:
 				elements, err = appendDeploy(q.Elements)
 			case dockerxmpp.NAME_CONTAINERS:

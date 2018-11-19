@@ -16,15 +16,18 @@ var (
 )
 
 type Haproxy struct {
+	Customer         string
 	ApplicationName  string
 	ContainerName    string
 	PortsContainer   map[string][]string
 	Protocol         map[string]string
 	AddressContainer string
 	Dns              string
+	Minion           string
 }
 
-type httpHttps struct {
+type infos struct {
+	Customer          string
 	ApplicationName   string
 	ContainerName     string
 	PortSource        string
@@ -32,6 +35,7 @@ type httpHttps struct {
 	AddressContainer  string
 	Dns               string
 	Protocol          string
+	Minion            string
 }
 
 type ConfHttpHttps struct {
@@ -40,6 +44,7 @@ type ConfHttpHttps struct {
 
 type ConfTcpUdp struct {
 	Hosts []Hosts `json:"hosts,omitempty"`
+	Dns   string  `json:"dns,omitempty"`
 }
 
 type Hosts struct {
@@ -58,23 +63,126 @@ type Containers struct {
 }
 
 func GenerateConf(h Haproxy) error {
-	/*var (
+	var (
 		exists bool
+		key    string
+		err    error
 	)
 
 	for src, dst := range h.PortsContainer {
 		if _, exists = ExistsStringElement(src, PORTS_HTTP); exists {
+			var confHttpHttps ConfHttpHttps
 
+			if confHttpHttps, err = httpAndHttps(infos{
+				ApplicationName:   h.ApplicationName,
+				ContainerName:     h.ContainerName,
+				PortSource:        src,
+				PortsDestionation: dst,
+				AddressContainer:  h.AddressContainer,
+				Dns:               h.Dns,
+				Minion:            h.Minion,
+			}); err != nil {
+				return err
+			}
+
+			key = fmt.Sprintf("%s%s", KEY_ETCD, KEY_HTTP[src])
+			if err = config.EnvSingleton.EtcdConnection.Set(key, confHttpHttps); err != nil {
+				return err
+			}
+		} else {
+			var confTcpUdp ConfTcpUdp
+
+			if confTcpUdp, err = tcpAndUdp(infos{
+				Customer:          h.Customer,
+				ApplicationName:   h.ApplicationName,
+				ContainerName:     h.ContainerName,
+				PortSource:        src,
+				PortsDestionation: dst,
+				Dns:               h.Dns,
+				Protocol:          h.Protocol[src],
+				Minion:            h.Minion,
+			}); err != nil {
+				return err
+			}
+
+			key = fmt.Sprintf("%s%s/%s", KEY_ETCD, h.Customer, h.ApplicationName)
+			if err = config.EnvSingleton.EtcdConnection.Set(key, confTcpUdp); err != nil {
+				return err
+			}
 		}
-	}*/
+	}
 
 	return nil
 }
 
-func tcpAndUdp() (ConfTcpUdp, error) {
+func tcpAndUdp(i infos) (ConfTcpUdp, error) {
+	var (
+		key      string
+		exists   bool
+		conf     ConfTcpUdp
+		contains bool
+		err      error
+	)
+
+	key = fmt.Sprintf("%s%s/%s", KEY_ETCD, i.Customer, i.ApplicationName)
+	exists = config.EnvSingleton.EtcdConnection.Exists(key)
+
+	if exists {
+		if err = config.EnvSingleton.EtcdConnection.Get(key, &conf); err != nil {
+			return conf, err
+		}
+
+		for idx, host := range conf.Hosts {
+			if host.PortSRC == i.PortSource {
+				contains = true
+				for _, port := range i.PortsDestionation {
+					conf.Hosts[idx].Containers = append(conf.Hosts[idx].Containers, Containers{
+						Name:    i.ContainerName,
+						Address: fmt.Sprintf("%s:%s", i.AddressContainer, port),
+						Minion:  i.Minion,
+					})
+				}
+			}
+		}
+
+		if !contains {
+			var containers []Containers
+			for _, port := range i.PortsDestionation {
+				containers = append(containers, Containers{
+					Name:    i.ContainerName,
+					Address: fmt.Sprintf("%s:%s", i.AddressContainer, port),
+					Minion:  i.Minion,
+				})
+			}
+
+			conf.Hosts = append(conf.Hosts, Hosts{
+				PortSRC:    i.PortSource,
+				Protocol:   i.Protocol,
+				Dns:        i.Dns,
+				Containers: containers,
+			})
+		}
+	} else {
+		conf = ConfTcpUdp{
+			Dns: i.Dns,
+			Hosts: []Hosts{
+				{PortSRC: i.PortSource, Protocol: i.Protocol},
+			},
+		}
+
+		for _, port := range i.PortsDestionation {
+			conf.Hosts[0].Containers = append(conf.Hosts[0].Containers, Containers{
+				Name:    i.ContainerName,
+				Address: fmt.Sprintf("%s:%s", i.AddressContainer, port),
+				Minion:  i.Minion,
+			})
+		}
+	}
+
+	return conf, nil
 }
 
-func httpAndHttps(h httpHttps) (ConfHttpHttps, error) {
+func httpAndHttps(h infos) (ConfHttpHttps, error) {
 	var (
 		key      string
 		exists   bool
@@ -96,7 +204,7 @@ func httpAndHttps(h httpHttps) (ConfHttpHttps, error) {
 				contains = true
 				for _, port := range h.PortsDestionation {
 					conf.Hosts[idx].Containers = append(conf.Hosts[idx].Containers, Containers{
-						Minion:  config.EnvConfig.Hostname,
+						Minion:  h.Minion,
 						Name:    h.ContainerName,
 						Address: fmt.Sprintf("%s:%s", h.AddressContainer, port),
 					})
@@ -108,7 +216,7 @@ func httpAndHttps(h httpHttps) (ConfHttpHttps, error) {
 			var containers []Containers
 			for _, port := range h.PortsDestionation {
 				containers = append(containers, Containers{
-					Minion:  config.EnvConfig.Hostname,
+					Minion:  h.Minion,
 					Name:    h.ContainerName,
 					Address: fmt.Sprintf("%s:%s", h.AddressContainer, port),
 				})
@@ -117,19 +225,19 @@ func httpAndHttps(h httpHttps) (ConfHttpHttps, error) {
 			conf.Hosts = append(conf.Hosts, Hosts{
 				Name:       h.ApplicationName,
 				Dns:        h.Dns,
-				Minion:     config.EnvConfig.Hostname,
+				Minion:     h.Minion,
 				Containers: containers,
 			})
 		}
 	} else {
 		conf = ConfHttpHttps{
 			Hosts: []Hosts{
-				{Name: h.ApplicationName, Dns: h.Dns, Minion: config.EnvConfig.Hostname},
+				{Name: h.ApplicationName, Dns: h.Dns, Minion: h.Minion},
 			},
 		}
 
 		for _, port := range h.PortsDestionation {
-			conf.Hosts[0].Containers = append(conf.Hosts[0].Containers, Containers{Minion: config.EnvConfig.Hostname, Name: h.ContainerName, Address: fmt.Sprintf("%s:%s", h.AddressContainer, port)})
+			conf.Hosts[0].Containers = append(conf.Hosts[0].Containers, Containers{Minion: h.Minion, Name: h.ContainerName, Address: fmt.Sprintf("%s:%s", h.AddressContainer, port)})
 		}
 	}
 
