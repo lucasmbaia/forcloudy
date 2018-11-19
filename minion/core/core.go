@@ -18,10 +18,11 @@ import (
 )
 
 const (
-	EMPTY_STR        = ""
-	JABBER_IQ_DOCKER = "jabber:iq:docker"
-	UNAVAILABLE      = "unavailable"
-	AVAILABLE        = "available"
+	EMPTY_STR           = ""
+	JABBER_IQ_DOCKER    = "jabber:iq:docker"
+	UNAVAILABLE         = "unavailable"
+	AVAILABLE           = "available"
+	MAX_RETRY_CONTAINER = 3
 )
 
 var (
@@ -36,6 +37,16 @@ var (
 
 type EventsDocker struct {
 	Error error
+}
+
+type ApplicationEtcd struct {
+	Protocol        map[string]string `json:"protocol,omitempty"`
+	Image           string            `json:"image,omitempty"`
+	PortsDST        []string          `json:"portsDst,omitempty"`
+	Cpus            string            `json:"cpus,omitempty"`
+	Dns             string            `json:"dns,omitempty"`
+	Memory          string            `json:"memory,omitempty"`
+	TotalContainers int               `json:"totalContainers,omitempty"`
 }
 
 func init() {
@@ -126,7 +137,28 @@ func checkContainerDie(ctx context.Context) {
 
 				var cn = strings.Split(c.Name, "_app-")
 				var customer = cn[0]
-				var application_name = strings.Join(strings.Split(cn[1], "-")[:-1], "-")
+				var applicationName = strings.Join(strings.Split(cn[1], "-")[:-1], "-")
+				var key = fmt.Sprintf("/%s/%s", customer, applicationName)
+				var ap ApplicationEtcd
+
+				if err = config.EnvSingleton.EtcdConnection.Get(key, *ap); err != nil {
+					config.EnvSingleton.Log.Errorf(log.TEMPLATE_ACTION, "Core", "checkContainerDie", "Get Infos Etcd", err.Error())
+					break
+				}
+
+				if retryDeployContainer[c.Name] < MAX_RETRY_CONTAINER {
+					var (
+						ed       = make(chan EventsDocker, 1)
+						ports    dockerxmpp.Elements
+						address  dockerxmpp.Elements
+						elements dockerxmpp.Elements
+					)
+
+					elements = dockerxmpp.Elements{
+						Name: c.Name,
+					}
+					eventsDocker[c.Name] = ed
+				}
 			}
 		}
 	}()

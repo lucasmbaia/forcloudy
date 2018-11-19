@@ -3,6 +3,7 @@ package models
 import (
 	"errors"
 	"fmt"
+	"github.com/lucasmbaia/forcloudy/api/config"
 	"github.com/lucasmbaia/forcloudy/api/core-xmpp"
 	"github.com/lucasmbaia/forcloudy/api/datamodels"
 	"github.com/lucasmbaia/forcloudy/api/repository"
@@ -22,6 +23,16 @@ type Applications struct {
 
 func NewApplications(session repository.Repositorier) *Applications {
 	return &Applications{repository: session}
+}
+
+type ApplicationEtcd struct {
+	Protocol        map[string]string `json:"protocol,omitempty"`
+	Image           string            `json:"image,omitempty"`
+	PortsDST        []string          `json:"portsDst,omitempty"`
+	Cpus            string            `json:"cpus,omitempty"`
+	Dns             string            `json:"dns,omitempty"`
+	Memory          string            `json:"memory,omitempty"`
+	TotalContainers int               `json:"totalContainers,omitempty"`
 }
 
 func (a *Applications) Post(values interface{}) error {
@@ -136,10 +147,12 @@ func (a *Applications) Patch(fields, data interface{}) error {
 
 func (a *Applications) requestDeploy(application *datamodels.ApplicationsFields, customer string) {
 	var (
-		response = make(chan core.Container)
-		ports    []core.Ports
-		err      error
-		entity   = &datamodels.ApplicationsFields{Status: "COMPLETED"}
+		response        = make(chan core.Container)
+		ports           []core.Ports
+		err             error
+		entity          = &datamodels.ApplicationsFields{Status: "COMPLETED"}
+		applicationEtcd ApplicationEtcd
+		key             string
 	)
 
 	go func() {
@@ -192,8 +205,22 @@ func (a *Applications) requestDeploy(application *datamodels.ApplicationsFields,
 		}
 	}()
 
+	applicationEtcd = ApplicationEtcd{
+		Image:           fmt.Sprintf("%s_app-%s/image:v1", customer, application.Name),
+		Cpus:            application.Cpus,
+		Memory:          fmt.Sprintf("%dMB", ((application.Memory / 1024) / 1024)),
+		TotalContainers: application.TotalContainers,
+	}
+
 	for _, port := range application.Ports {
 		ports = append(ports, core.Ports{Port: port.Port, Protocol: port.Protocol})
+		applicationEtcd.Protocol[strconv.Itoa(port.Port)] = port.Protocol
+	}
+
+	key = fmt.Sprintf("/%s/%s", customer, application.Name)
+
+	if err = config.EnvSingleton.EtcdConnection.Set(key, applicationEtcd); err != nil {
+		fmt.Println(err)
 	}
 
 	if err = core.DeployApplication(core.Deploy{
