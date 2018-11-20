@@ -210,11 +210,13 @@ func (a *Applications) requestDeploy(application *datamodels.ApplicationsFields,
 		Cpus:            application.Cpus,
 		Memory:          fmt.Sprintf("%dMB", ((application.Memory / 1024) / 1024)),
 		TotalContainers: application.TotalContainers,
+		Protocol:        make(map[string]string),
 	}
 
 	for _, port := range application.Ports {
 		ports = append(ports, core.Ports{Port: port.Port, Protocol: port.Protocol})
 		applicationEtcd.Protocol[strconv.Itoa(port.Port)] = port.Protocol
+		applicationEtcd.PortsDST = append(applicationEtcd.PortsDST, strconv.Itoa(port.Port))
 	}
 
 	key = fmt.Sprintf("/%s/%s", customer, application.Name)

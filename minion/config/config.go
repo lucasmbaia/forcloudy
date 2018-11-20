@@ -1,6 +1,7 @@
 package config
 
 import (
+	"github.com/lucasmbaia/forcloudy/etcd"
 	"github.com/lucasmbaia/forcloudy/logging"
 	"github.com/lucasmbaia/go-xmpp"
 	_log "log"
@@ -14,6 +15,10 @@ var (
 )
 
 type Config struct {
+	EtcdUsername   string
+	EtcdPassword   string
+	EtcdEndpoints  []string
+	EtcdTimeout    int32
 	UserMasterNode string `json:",omitempty"`
 	Hostname       string
 }
@@ -31,6 +36,7 @@ type Xmpp struct {
 type Singleton struct {
 	XmppConnection *xmpp.Client
 	Log            *logging.Logger
+	EtcdConnection etcd.Client
 }
 
 func LoadConfig() {
@@ -38,6 +44,7 @@ func LoadConfig() {
 
 	LoadLog(logging.INFO)
 	loadXMPP()
+	LoadETCD()
 
 	if EnvConfig.Hostname, err = os.Hostname(); err != nil {
 		_log.Panic(err)

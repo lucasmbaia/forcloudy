@@ -14,10 +14,15 @@ func loadConfig() {
 		Host: "192.168.204.129",
 		Port: "5222",
 		MechanismAuthenticate: xmpp.PLAIN,
-		User:     "minion-1@localhost",
-		Password: "totvs@123",
-		Room:     "minions@conference.localhost",
-		MasterUser: 	"zeus",
+		User:       "minion-1@localhost",
+		Password:   "totvs@123",
+		Room:       "minions@conference.localhost",
+		MasterUser: "zeus",
+	}
+
+	config.EnvConfig = config.Config{
+		EtcdEndpoints: []string{"http://192.168.204.128:2379"},
+		EtcdTimeout:   10,
 	}
 
 	config.LoadConfig()

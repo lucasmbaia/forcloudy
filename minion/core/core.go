@@ -13,6 +13,7 @@ import (
 	"github.com/lucasmbaia/go-xmpp"
 	dockerxmpp "github.com/lucasmbaia/go-xmpp/docker"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -52,6 +53,7 @@ type ApplicationEtcd struct {
 func init() {
 	eventsDocker = make(map[string]chan EventsDocker)
 	retryDeployContainer = make(map[string]int)
+	containersDie = make(chan docker.Containers)
 }
 
 func Run(ctx context.Context) error {
@@ -63,8 +65,10 @@ func Run(ctx context.Context) error {
 		return err
 	}
 
+	fmt.Println(containers)
 	//init watch events of docker
 	watchEvents(ctx)
+	checkContainerDie(ctx)
 
 	if err = initXMPP(ctx); err != nil {
 		return err
@@ -103,15 +107,19 @@ func watchEvents(ctx context.Context) {
 						if _, ok := eventsDocker[ev.Actor.Attributes.Name]; ok {
 							eventsDocker[ev.Actor.Attributes.Name] <- EventsDocker{Error: errors.New("Erro to create container")}
 						} else {
+							fmt.Println("ENTROU AQUI PORRA")
+							fmt.Println(ev.Actor.Attributes.Name)
 							for _, container := range containers {
 								if container.Name == ev.Actor.Attributes.Name {
+									fmt.Println("MESMO NOME PORRA")
 									if container.Image == EMPTY_STR {
 										container.Image = ev.Actor.Attributes.Image
 									}
-								}
 
-								containersDie <- container
-								break
+									containersDie <- container
+									fmt.Println("PORRAAAAAAAAAAAAAAAAAAAA")
+									break
+								}
 							}
 						}
 					}
@@ -131,33 +139,49 @@ func checkContainerDie(ctx context.Context) {
 		for {
 			select {
 			case c := <-containersDie:
+				fmt.Println("ENTROU AQUI BUCETA")
+				fmt.Println(c)
 				if _, ok := retryDeployContainer[c.Name]; !ok {
 					retryDeployContainer[c.Name] = 0
 				}
 
 				var cn = strings.Split(c.Name, "_app-")
 				var customer = cn[0]
-				var applicationName = strings.Join(strings.Split(cn[1], "-")[:-1], "-")
+				var aux = strings.Split(cn[1], "-")
+				var applicationName = strings.Join(aux[:len(aux)-1], "-")
 				var key = fmt.Sprintf("/%s/%s", customer, applicationName)
 				var ap ApplicationEtcd
+				var err error
 
-				if err = config.EnvSingleton.EtcdConnection.Get(key, *ap); err != nil {
+				if err = config.EnvSingleton.EtcdConnection.Get(key, &ap); err != nil {
 					config.EnvSingleton.Log.Errorf(log.TEMPLATE_ACTION, "Core", "checkContainerDie", "Get Infos Etcd", err.Error())
 					break
 				}
 
 				if retryDeployContainer[c.Name] < MAX_RETRY_CONTAINER {
 					var (
-						ed       = make(chan EventsDocker, 1)
-						ports    dockerxmpp.Elements
-						address  dockerxmpp.Elements
-						elements dockerxmpp.Elements
+						err   error
+						ports []dockerxmpp.Ports
 					)
 
-					elements = dockerxmpp.Elements{
-						Name: c.Name,
+					fmt.Println("PORRA DE PORTA: ", ap.PortsDST)
+					for _, port := range ap.PortsDST {
+						p, _ := strconv.Atoi(port)
+						ports = append(ports, dockerxmpp.Ports{Port: p})
 					}
-					eventsDocker[c.Name] = ed
+
+					time.Sleep(3 * time.Second)
+					if _, err = generateDeploy(dockerxmpp.Elements{
+						Name:   c.Name,
+						Cpus:   ap.Cpus,
+						Memory: ap.Memory,
+						Image:  c.Image,
+						Ports:  ports,
+					}); err != nil {
+						config.EnvSingleton.Log.Errorf(log.TEMPLATE_ACTION, "Core", "generateDeploy", "Error to generate die container", err.Error())
+						containersDie <- c
+						break
+					}
 				}
 			}
 		}
@@ -294,7 +318,7 @@ func Iq(i interface{}) {
 
 				if err != nil {
 					var c []docker.Containers
-					if c, err = utils.ListAllContainers(q.Elements.Name); err == nil {
+					if c, err = docker.ListAllContainers(q.Elements.Name); err == nil {
 						containers = append(containers, c...)
 					} else {
 						containers = append(containers, docker.Containers{
@@ -338,4 +362,64 @@ func Iq(i interface{}) {
 			}
 		}
 	}
+}
+
+func generateDeploy(elements dockerxmpp.Elements) (dockerxmpp.Elements, error) {
+	var (
+		ed      = make(chan EventsDocker, 1)
+		ports   dockerxmpp.Elements
+		address dockerxmpp.Elements
+		err     error
+		el      = dockerxmpp.Elements{}
+	)
+
+	eventsDocker[elements.Name] = ed
+	defer func() {
+		delete(eventsDocker, elements.Name)
+	}()
+
+	fmt.Println("PORTS CARALHO: ", elements.Ports)
+	if el, err = masterDeploy(elements); err != nil {
+		return dockerxmpp.Elements{}, err
+	}
+
+	go func() {
+		time.Sleep(5 * time.Second)
+		if _, ok := eventsDocker[elements.Name]; ok {
+			eventsDocker[elements.Name] <- EventsDocker{}
+		}
+	}()
+
+	select {
+	case r := <-ed:
+		if r.Error != nil {
+			return dockerxmpp.Elements{}, r.Error
+		}
+	}
+
+	if address, err = addressContainer(elements); err != nil {
+		return dockerxmpp.Elements{}, err
+	}
+
+	if ports, err = portsContainer(elements); err != nil {
+		return dockerxmpp.Elements{}, err
+	}
+
+	var c []docker.Containers
+	if c, err = docker.ListAllContainers(elements.Name); err == nil {
+		containers = append(containers, c...)
+	} else {
+		containers = append(containers, docker.Containers{
+			ID:   el.ID,
+			Name: elements.Name,
+		})
+	}
+
+	return dockerxmpp.Elements{
+		ID:             el.ID,
+		Name:           elements.Name,
+		PortsContainer: ports.PortsContainer,
+		Address:        address.Address,
+		Minion:         config.EnvConfig.Hostname,
+	}, nil
 }
