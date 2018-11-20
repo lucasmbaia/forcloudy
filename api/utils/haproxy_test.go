@@ -19,6 +19,7 @@ func init() {
 
 func Test_HttpAndHttps(t *testing.T) {
 	if conf, err := httpAndHttps(infos{
+		Customer:          "lucas",
 		ApplicationName:   "httpAndHttps",
 		ContainerName:     "lucas_app-httpAndHttps-1",
 		PortSource:        "80",
@@ -69,6 +70,17 @@ func Test_GenerateConf(t *testing.T) {
 		AddressContainer: "127.0.0.1",
 		Dns:              "teste.local",
 		Minion:           "minion-1",
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func Test_RemoveContainer(t *testing.T) {
+	if err := RemoveContainer(Haproxy{
+		Customer:        "lucas",
+		ApplicationName: "cuzao",
+		ContainerName:   "lucas_app-cuzao-4",
+		PortsContainer:  map[string][]string{"80": []string{"32797"}},
 	}); err != nil {
 		t.Fatal(err)
 	}

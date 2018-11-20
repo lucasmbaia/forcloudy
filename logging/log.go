@@ -74,7 +74,7 @@ func setArgs(args ...interface{}) []interface{} {
 			element = element.Elem()
 		}
 
-		if element.Kind() == reflect.Struct {
+		if element.Kind() == reflect.Struct || element.Kind() == reflect.Slice {
 			if body, err = json.Marshal(arg); err != nil {
 				fields = append(fields, arg)
 			} else {

@@ -19,6 +19,7 @@ func init() {
 
 func Test_HttpAndHttps(t *testing.T) {
 	if conf, err := httpAndHttps(infos{
+		Customer:          "lucas",
 		ApplicationName:   "httpAndHttps",
 		ContainerName:     "lucas_app-httpAndHttps-1",
 		PortSource:        "80",

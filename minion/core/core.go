@@ -6,6 +6,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"github.com/lucasmbaia/forcloudy/dtos"
 	"github.com/lucasmbaia/forcloudy/minion/config"
 	"github.com/lucasmbaia/forcloudy/minion/docker"
 	"github.com/lucasmbaia/forcloudy/minion/log"
@@ -65,9 +66,11 @@ func Run(ctx context.Context) error {
 		return err
 	}
 
-	fmt.Println(containers)
+	config.EnvSingleton.Log.Infofc(log.TEMPLATE_ACTION, "Core", "Run", "Containers in this minion", containers)
+
 	//init watch events of docker
 	watchEvents(ctx)
+	//init check containers die
 	checkContainerDie(ctx)
 
 	if err = initXMPP(ctx); err != nil {
@@ -107,17 +110,13 @@ func watchEvents(ctx context.Context) {
 						if _, ok := eventsDocker[ev.Actor.Attributes.Name]; ok {
 							eventsDocker[ev.Actor.Attributes.Name] <- EventsDocker{Error: errors.New("Erro to create container")}
 						} else {
-							fmt.Println("ENTROU AQUI PORRA")
-							fmt.Println(ev.Actor.Attributes.Name)
 							for _, container := range containers {
 								if container.Name == ev.Actor.Attributes.Name {
-									fmt.Println("MESMO NOME PORRA")
 									if container.Image == EMPTY_STR {
 										container.Image = ev.Actor.Attributes.Image
 									}
 
 									containersDie <- container
-									fmt.Println("PORRAAAAAAAAAAAAAAAAAAAA")
 									break
 								}
 							}
@@ -139,8 +138,6 @@ func checkContainerDie(ctx context.Context) {
 		for {
 			select {
 			case c := <-containersDie:
-				fmt.Println("ENTROU AQUI BUCETA")
-				fmt.Println(c)
 				if _, ok := retryDeployContainer[c.Name]; !ok {
 					retryDeployContainer[c.Name] = 0
 				}
@@ -152,10 +149,21 @@ func checkContainerDie(ctx context.Context) {
 				var key = fmt.Sprintf("/%s/%s", customer, applicationName)
 				var ap ApplicationEtcd
 				var err error
+				var body []byte
+				var elements dockerxmpp.Elements
+				var message = &xmpp.Message{From: config.EnvSingleton.XmppConnection.Jid}
 
 				if err = config.EnvSingleton.EtcdConnection.Get(key, &ap); err != nil {
 					config.EnvSingleton.Log.Errorf(log.TEMPLATE_ACTION, "Core", "checkContainerDie", "Get Infos Etcd", err.Error())
 					break
+				}
+
+				var container = dtos.Container{
+					Customer:    customer,
+					Application: applicationName,
+					Name:        c.Name,
+					Image:       c.Image,
+					Ports:       make(map[string][]string),
 				}
 
 				if retryDeployContainer[c.Name] < MAX_RETRY_CONTAINER {
@@ -164,14 +172,13 @@ func checkContainerDie(ctx context.Context) {
 						ports []dockerxmpp.Ports
 					)
 
-					fmt.Println("PORRA DE PORTA: ", ap.PortsDST)
 					for _, port := range ap.PortsDST {
 						p, _ := strconv.Atoi(port)
 						ports = append(ports, dockerxmpp.Ports{Port: p})
 					}
 
 					time.Sleep(3 * time.Second)
-					if _, err = generateDeploy(dockerxmpp.Elements{
+					if elements, err = generateDeploy(dockerxmpp.Elements{
 						Name:   c.Name,
 						Cpus:   ap.Cpus,
 						Memory: ap.Memory,
@@ -181,6 +188,28 @@ func checkContainerDie(ctx context.Context) {
 						config.EnvSingleton.Log.Errorf(log.TEMPLATE_ACTION, "Core", "generateDeploy", "Error to generate die container", err.Error())
 						containersDie <- c
 						break
+					}
+
+					for _, port := range elements.PortsContainer {
+						container.Ports[port.Source] = port.Destinations
+					}
+
+					message.Subject = "Generate new container die with success"
+				} else {
+					message.Subject = "Container Die"
+				}
+
+				if len(masterNode) > 0 {
+					if body, err = json.Marshal(container); err != nil {
+						config.EnvSingleton.Log.Errorf(log.TEMPLATE_ACTION, "Core", "checkContainerDie", "Marshal Error", err.Error())
+						break
+					}
+
+					message.To = masterNode[0]
+					message.Body = string(body)
+
+					if err = config.EnvSingleton.XmppConnection.Send(message); err != nil {
+						config.EnvSingleton.Log.Errorf(log.TEMPLATE_ACTION, "Core", "checkContainerDie", "Error use method Send of xmpp", err.Error())
 					}
 				}
 			}
@@ -221,19 +250,23 @@ func Presence(i interface{}) {
 		exists bool
 	)
 
-	if !reflect.DeepEqual(p.User, xmpp.MucUser{}) && strings.Contains(p.From, config.EnvXmpp.MasterUser) && strings.Contains(p.From, config.EnvXmpp.Room) {
+	if !reflect.DeepEqual(p.User, xmpp.MucUser{}) && strings.Contains(p.From, config.EnvXmpp.MasterUser) {
 		for _, item := range p.User.Item {
-			if p.Type == UNAVAILABLE {
-				config.EnvSingleton.Log.Infof(log.TEMPLATE_PRESENCE, item.Jid, UNAVAILABLE)
-				if idx, exists = utils.ExistsStringElement(item.Jid, masterNode); exists {
-					masterNode = append(masterNode[idx:], masterNode[:idx+1]...)
-				}
-			} else {
-				config.EnvSingleton.Log.Infof(log.TEMPLATE_PRESENCE, item.Jid, AVAILABLE)
-				if _, exists = utils.ExistsStringElement(item.Jid, masterNode); !exists {
-					masterNode = append(masterNode, item.Jid)
+			if item.Jid != EMPTY_STR {
+				if p.Type == UNAVAILABLE {
+					config.EnvSingleton.Log.Infof(log.TEMPLATE_PRESENCE, item.Jid, UNAVAILABLE)
+					if idx, exists = utils.ExistsStringElement(item.Jid, masterNode); exists {
+						masterNode = append(masterNode[idx:], masterNode[:idx+1]...)
+					}
+				} else {
+					config.EnvSingleton.Log.Infof(log.TEMPLATE_PRESENCE, item.Jid, AVAILABLE)
+					if _, exists = utils.ExistsStringElement(item.Jid, masterNode); !exists {
+						masterNode = append(masterNode, item.Jid)
+					}
 				}
 			}
+
+			fmt.Println(masterNode)
 		}
 	}
 }
@@ -272,7 +305,6 @@ func Iq(i interface{}) {
 			case EMPTY_STR:
 				err = errors.New("Action is not informed")
 			case dockerxmpp.GENERATE_IMAGE:
-				fmt.Println("GENERATE IMAGE PORRA")
 				err = generateImage(q.Elements)
 			case dockerxmpp.LOAD_IMAGE:
 				elements, err = loadImage(q.Elements)
@@ -378,7 +410,6 @@ func generateDeploy(elements dockerxmpp.Elements) (dockerxmpp.Elements, error) {
 		delete(eventsDocker, elements.Name)
 	}()
 
-	fmt.Println("PORTS CARALHO: ", elements.Ports)
 	if el, err = masterDeploy(elements); err != nil {
 		return dockerxmpp.Elements{}, err
 	}

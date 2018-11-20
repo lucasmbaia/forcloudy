@@ -49,6 +49,7 @@ type ConfTcpUdp struct {
 
 type Hosts struct {
 	Containers []Containers `json:"containers,omitempty"`
+	Customer   string       `json:"customer,omitempty"`
 	Name       string       `json:"name,omitempty"`
 	Dns        string       `json:"dns,omitempty"`
 	Minion     string       `json:"minion,omitempty"`
@@ -74,6 +75,7 @@ func GenerateConf(h Haproxy) error {
 			var confHttpHttps ConfHttpHttps
 
 			if confHttpHttps, err = httpAndHttps(infos{
+				Customer:          h.Customer,
 				ApplicationName:   h.ApplicationName,
 				ContainerName:     h.ContainerName,
 				PortSource:        src,
@@ -270,7 +272,7 @@ func httpAndHttps(h infos) (ConfHttpHttps, error) {
 		}
 
 		for idx, host := range conf.Hosts {
-			if host.Name == h.ApplicationName {
+			if host.Name == h.ApplicationName && host.Customer == h.Customer {
 				contains = true
 				for _, port := range h.PortsDestionation {
 					conf.Hosts[idx].Containers = append(conf.Hosts[idx].Containers, Containers{
@@ -293,6 +295,7 @@ func httpAndHttps(h infos) (ConfHttpHttps, error) {
 			}
 
 			conf.Hosts = append(conf.Hosts, Hosts{
+				Customer:   h.Customer,
 				Name:       h.ApplicationName,
 				Dns:        h.Dns,
 				Minion:     h.Minion,
@@ -302,7 +305,7 @@ func httpAndHttps(h infos) (ConfHttpHttps, error) {
 	} else {
 		conf = ConfHttpHttps{
 			Hosts: []Hosts{
-				{Name: h.ApplicationName, Dns: h.Dns, Minion: h.Minion},
+				{Customer: h.Customer, Name: h.ApplicationName, Dns: h.Dns, Minion: h.Minion},
 			},
 		}
 

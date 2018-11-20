@@ -2,6 +2,7 @@ package core
 
 import (
 	"github.com/lucasmbaia/forcloudy/api/config"
+	"github.com/lucasmbaia/forcloudy/dtos"
 	"github.com/lucasmbaia/go-xmpp"
 	"github.com/lucasmbaia/go-xmpp/docker"
 
@@ -79,6 +80,41 @@ func initXMPP(ctx context.Context, chat string) error {
 }
 
 func Message(i interface{}) {
+	var m = i.(*xmpp.Message)
+
+	switch m.Subject {
+	case "Generate new container die with success":
+		var (
+			container dtos.Container
+			err       error
+			h         utils.Haproxy
+			ap        dtos.ApplicationEtcd
+		)
+
+		if err = json.Unmarshal([]byte(m.Body), container); err != nil {
+			return
+		}
+
+		if config.EnvSingleton.EtcdConnection.Get(fmt.Sprintf("%s%s", utils.KEY_ETCD, container.Customer), &ap); err != nil {
+			return
+		}
+
+		h = utils.Haproxy{
+			Customer:        container.Customer,
+			ApplicationName: container.Application,
+			ContainerName:   container.Name,
+			PortsContainer:  container.Ports,
+		}
+
+		if err = utils.RemoveContainer(utils.Haproxy{
+			Customer:        container.Customer,
+			ApplicationName: container.Application,
+			ContainerName:   container.Name,
+			PortsContainer:  container.Ports,
+		}); err != nil {
+			return
+		}
+	}
 	fmt.Println(i)
 }
 
