@@ -2,15 +2,18 @@ package core
 
 import (
 	"github.com/lucasmbaia/forcloudy/api/config"
+	"github.com/lucasmbaia/forcloudy/api/utils"
 	"github.com/lucasmbaia/forcloudy/dtos"
 	"github.com/lucasmbaia/go-xmpp"
 	"github.com/lucasmbaia/go-xmpp/docker"
 
 	"context"
+	"encoding/json"
 	"encoding/xml"
 	"errors"
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -92,18 +95,53 @@ func Message(i interface{}) {
 		)
 
 		if err = json.Unmarshal([]byte(m.Body), container); err != nil {
+			fmt.Println(err)
 			return
 		}
 
 		if config.EnvSingleton.EtcdConnection.Get(fmt.Sprintf("%s%s", utils.KEY_ETCD, container.Customer), &ap); err != nil {
+			fmt.Println(err)
 			return
 		}
 
 		h = utils.Haproxy{
-			Customer:        container.Customer,
-			ApplicationName: container.Application,
-			ContainerName:   container.Name,
-			PortsContainer:  container.Ports,
+			Customer:         container.Customer,
+			ApplicationName:  container.Application,
+			ContainerName:    container.Name,
+			PortsContainer:   container.Ports,
+			Protocol:         ap.Protocol,
+			AddressContainer: container.Address,
+			Dns:              ap.Dns,
+			Minion:           container.Minion,
+		}
+
+		if err = utils.RemoveContainer(h); err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		if err = utils.GenerateConf(h); err != nil {
+			fmt.Println(err)
+			return
+		}
+	case "Container Die":
+		var (
+			container dtos.Container
+			err       error
+			ap        dtos.ApplicationEtcd
+			response  = make(chan Container)
+			ports     []Ports
+			iterator  int
+		)
+
+		if err = json.Unmarshal([]byte(m.Body), container); err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		if config.EnvSingleton.EtcdConnection.Get(fmt.Sprintf("%s%s", utils.KEY_ETCD, container.Customer), &ap); err != nil {
+			fmt.Println(err)
+			return
 		}
 
 		if err = utils.RemoveContainer(utils.Haproxy{
@@ -112,6 +150,58 @@ func Message(i interface{}) {
 			ContainerName:   container.Name,
 			PortsContainer:  container.Ports,
 		}); err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		for port, protocol := range ap.Protocol {
+			p, _ := strconv.Atoi(port)
+			ports = append(ports, Ports{Port: p, Protocol: protocol})
+		}
+
+		var aux = strings.Split(container.Name, "-")
+		iterator, _ = strconv.Atoi(aux[len(aux)-1])
+
+		go func() {
+			select {
+			case resp := <-response:
+				if resp.Error != nil {
+					fmt.Println(resp.Error)
+					break
+				}
+
+				var portsContainer = make(map[string][]string)
+
+				for _, port := range resp.PortsContainer {
+					portsContainer[port.Source] = port.Destinations
+				}
+
+				if err = utils.GenerateConf(utils.Haproxy{
+					Customer:         container.Customer,
+					ApplicationName:  container.Application,
+					ContainerName:    container.Name,
+					PortsContainer:   portsContainer,
+					Protocol:         ap.Protocol,
+					AddressContainer: resp.Address,
+					Dns:              ap.Dns,
+					Minion:           resp.Minion,
+				}); err != nil {
+					fmt.Println(err)
+					break
+				}
+			}
+		}()
+
+		if err = DeployApplication(Deploy{
+			Customer:        container.Customer,
+			ApplicationName: container.Application,
+			Cpus:            ap.Cpus,
+			Memory:          ap.Memory,
+			ImageVersion:    strings.Split(container.Image, ":")[1],
+			TotalContainers: 1,
+			Ports:           ports,
+		}, iterator, false, response); err != nil {
+			fmt.Println(err)
 			return
 		}
 	}

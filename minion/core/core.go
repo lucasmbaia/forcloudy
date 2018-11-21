@@ -164,6 +164,7 @@ func checkContainerDie(ctx context.Context) {
 					Name:        c.Name,
 					Image:       c.Image,
 					Ports:       make(map[string][]string),
+					Minion:      config.EnvConfig.Hostname,
 				}
 
 				if retryDeployContainer[c.Name] < MAX_RETRY_CONTAINER {
@@ -194,6 +195,7 @@ func checkContainerDie(ctx context.Context) {
 						container.Ports[port.Source] = port.Destinations
 					}
 
+					container.Address = elements.Address
 					message.Subject = "Generate new container die with success"
 				} else {
 					message.Subject = "Container Die"
@@ -229,8 +231,11 @@ func initXMPP(ctx context.Context) error {
 		return err
 	}
 
-	config.EnvSingleton.XmppConnection.DiscoItems("conference.localhost")
-	config.EnvSingleton.XmppConnection.DiscoItems("minions@conference.localhost")
+	//config.EnvSingleton.XmppConnection.DiscoItems("conference.localhost")
+	//config.EnvSingleton.XmppConnection.DiscoItems("minions@conference.localhost")
+	if err = config.EnvSingleton.XmppConnection.DiscoItems(config.EnvXmpp.Room); err != nil {
+		return err
+	}
 
 	if err = config.EnvSingleton.XmppConnection.MucPresence(config.EnvXmpp.Room); err != nil {
 		return err

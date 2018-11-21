@@ -6,4 +6,6 @@ type Container struct {
 	Name        string              `json:",omitempty"`
 	Image       string              `json:",omitempty"`
 	Ports       map[string][]string `json:",omitempty"`
+	Address     string              `json:",omitempty"`
+	Minion      string              `json:",omitempty"`
 }
