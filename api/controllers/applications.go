@@ -18,10 +18,20 @@ func (a *ApplicationController) Get() ([]datamodels.ApplicationsFields, error) {
 	return results.([]datamodels.ApplicationsFields), err
 }
 
+func (a *ApplicationController) GetBy(id string) ([]datamodels.ApplicationsFields, error) {
+	var (
+		results interface{}
+		err     error
+	)
+
+	results, err = a.Services.GetById(a.Ctx, id)
+	return results.([]datamodels.ApplicationsFields), err
+}
+
 func (a *ApplicationController) Post() (datamodels.Response, error) {
 	return a.Services.Post(a.Ctx)
 }
 
-func (a *ApplicationController) GetByCustomer(customer string) (results []datamodels.ApplicationsFields) {
+/*func (a *ApplicationController) GetByCustomer(customer string) (results []datamodels.ApplicationsFields) {
 	return results
-}
+}*/

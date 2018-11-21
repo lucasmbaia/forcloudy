@@ -21,6 +21,7 @@ const (
 type ResourceService interface {
 	Post(ctx iris.Context) (datamodels.Response, error)
 	Get(ctx iris.Context) (interface{}, error)
+	GetById(ctx iris.Context, id string) (interface{}, error)
 	/*Print()
 	  Set(params map[string]interface{}) error
 	  GetFields() interface{}
@@ -75,6 +76,19 @@ func (r *resourceService) Get(ctx iris.Context) (i interface{}, err error) {
 	}
 
 	fmt.Println(fields)
+	return model.Get(fields)
+}
+
+func (r *resourceService) GetById(ctx iris.Context, id string) (i interface{}, err error) {
+	var (
+		model  = r.model(r.repository)
+		fields = r.fields()
+	)
+
+	if err = r.setParams(ctx.GetCurrentRoute().Path(), ctx.Params(), fields, id); err != nil {
+		return i, err
+	}
+
 	return model.Get(fields)
 }
 

@@ -173,6 +173,33 @@ func DeployApplication(d Deploy, iterator int, first bool, assyncContainers chan
 	return nil
 }
 
+func RemoveContainer(name string) error {
+	var (
+		err    error
+		exists bool
+		idx    int
+	)
+
+	for m, i := range minions {
+		if idx, exists = utils.ExistsStringElement(name, i.Containers); exists {
+			if err = removeContainer(name, m); err != nil {
+				return err
+			}
+
+			if len(i.Containers)-1 == idx {
+				i.Containers = i.Containers[:idx]
+			} else {
+				i.Containers = append(i.Containers[:idx], i.Containers[idx+1:]...)
+			}
+
+			minions[m] = Minions{Containers: i}
+			break
+		}
+	}
+
+	return nil
+}
+
 func existsImage(image, to string) (bool, error) {
 	var (
 		iq       docker.IQ

@@ -32,6 +32,7 @@ var (
 	containers           []docker.Containers
 	containers_deploy    []string
 	containers_die       []string
+	containersRemove     []string
 	eventsDocker         map[string]chan EventsDocker
 	containersDie        chan docker.Containers
 	retryDeployContainer map[string]int
@@ -85,9 +86,10 @@ func Run(ctx context.Context) error {
 
 func watchEvents(ctx context.Context) {
 	var (
-		err   error
-		errc  = make(chan error, 1)
-		event = make(chan []byte)
+		err    error
+		errc   = make(chan error, 1)
+		event  = make(chan []byte)
+		exists bool
 	)
 
 	go func() {
@@ -112,6 +114,10 @@ func watchEvents(ctx context.Context) {
 						} else {
 							for _, container := range containers {
 								if container.Name == ev.Actor.Attributes.Name {
+									if _, exists = utils.ExistsStringElement(ev.Actor.Attributes.Name, containersRemove); exists {
+										break
+									}
+
 									if container.Image == EMPTY_STR {
 										container.Image = ev.Actor.Attributes.Image
 									}
@@ -373,7 +379,29 @@ func Iq(i interface{}) {
 			case dockerxmpp.OPERATION_CONTAINERS:
 				elements, err = operationContainers(q.Elements)
 			case dockerxmpp.REMOVE_CONTAINER:
+				containersRemove = append(containersRemove, q.Elements.Name)
 				err = removeContainer(q.Elements)
+
+				if err == nil {
+					for idx, c := range containers {
+						if c.Name == q.Elements.Name {
+							if len(containers)-1 == idx {
+								containers = containers[:idx]
+							} else {
+								containers = append(containers[:idx], containers[idx+1:]...)
+							}
+						}
+					}
+				}
+
+				var idx int
+				idx, _ = utils.ExistsStringElement(q.Elements.Name, containersRemove)
+
+				if len(containersRemove)-1 == idx {
+					containersRemove = containersRemove[:idx]
+				} else {
+					containersRemove = append(containersRemove[:idx], containersRemove[idx+1:]...)
+				}
 			default:
 				err = errors.New("Action is not exists")
 			}
