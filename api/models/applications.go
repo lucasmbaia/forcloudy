@@ -166,6 +166,7 @@ func (a *Applications) Delete(conditions interface{}) error {
 		}
 	}
 
+	go a.requestDelete(application, containers.([]datamodels.ContainersFields), 0)
 	return nil
 }
 
@@ -182,14 +183,38 @@ func (a *Applications) Patch(fields, data interface{}) error {
 	return a.repository.Update(conditions, entity)
 }
 
-func (a *Applications) requestDelete(application *datamodels.ApplicationsFields, containers []datamodels.ContainersFields) {
+func (a *Applications) requestDelete(application *datamodels.ApplicationsFields, containers []datamodels.ContainersFields, retry int) {
 	var (
 		err error
 	)
 
 	for _, container := range containers {
-		if err = NewContainers(a.repository).Delete(container); err != nil {
-			break
+		if err = NewContainers(a.repository).Delete(&container); err != nil {
+			if retry < 3 {
+				go a.requestDelete(application, containers, retry)
+			} else {
+				break
+			}
+
+			retry++
+		}
+	}
+
+	if err == nil {
+		if err = a.repository.Delete(application); err != nil {
+			fmt.Println(err)
+		}
+	} else {
+		var e = err.Error()
+
+		if err = a.Patch(
+			application,
+			&datamodels.ApplicationsFields{
+				Status: "ERROR",
+				Error:  &e,
+			},
+		); err != nil {
+			fmt.Println(err)
 		}
 	}
 }

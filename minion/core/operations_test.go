@@ -117,3 +117,11 @@ func TestPortsContainer(t *testing.T) {
 		fmt.Println(ports.PortsContainer)
 	}
 }
+
+func TestExistsContainer(t *testing.T) {
+	if exists, err := existsContainer(dockerxmpp.Elements{Name: "lucas-2"}); err != nil {
+		t.Fatal(err)
+	} else {
+		fmt.Println(exists)
+	}
+}

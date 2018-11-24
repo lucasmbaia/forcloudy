@@ -185,14 +185,40 @@ func operationContainers(elements dockerxmpp.Elements) (dockerxmpp.Elements, err
 
 func removeContainer(elements dockerxmpp.Elements) error {
 	var (
-		err error
+		err    error
+		exists bool
 	)
 
-	if _, err = utils.Command("docker", []string{"rm", "-f", elements.Name}, TIMEOUT_DEFAULT_COMMAND); err != nil {
+	if exists, err = existsContainer(elements); err != nil {
 		return err
 	}
 
+	if exists {
+		if _, err = utils.Command("docker", []string{"rm", "-f", elements.Name}, TIMEOUT_DEFAULT_COMMAND); err != nil {
+			return err
+		}
+	}
+
 	return nil
+}
+
+func existsContainer(elements dockerxmpp.Elements) (bool, error) {
+	var (
+		err error
+		el  dockerxmpp.Elements
+	)
+
+	if el, err = nameContainers(); err != nil {
+		return false, err
+	}
+
+	for _, container := range el.Containers {
+		if container.Name == elements.Name {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 func addressContainer(elements dockerxmpp.Elements) (dockerxmpp.Elements, error) {
