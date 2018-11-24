@@ -1,6 +1,7 @@
 package models
 
 import (
+	"github.com/lucasmbaia/forcloudy/api/core-xmpp"
 	"github.com/lucasmbaia/forcloudy/api/datamodels"
 	"github.com/lucasmbaia/forcloudy/api/repository"
 )
@@ -40,7 +41,25 @@ func (c *Containers) Get(filters interface{}) (interface{}, error) {
 }
 
 func (c *Containers) Delete(conditions interface{}) error {
-	return nil
+	var (
+		container = conditions.(*datamodels.ContainersFields)
+		err       error
+	)
+
+	if err = core.RemoveContainer(container.Name); err != nil {
+		c.Patch(
+			conditions,
+			&datamodels.ContainersFields{
+				Status: "ERROR",
+				State:  "ERROR",
+				Error:  err.Error(),
+			},
+		)
+
+		return err
+	}
+
+	return c.repository.Delete(conditions)
 }
 
 func (c *Containers) Put(fields, data interface{}) error {

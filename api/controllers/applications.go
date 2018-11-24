@@ -32,6 +32,10 @@ func (a *ApplicationController) Post() (datamodels.Response, error) {
 	return a.Services.Post(a.Ctx)
 }
 
+func (a *ApplicationController) DeleteBy(id string) error {
+	return a.Services.DeleteById(a.Ctx, id)
+}
+
 /*func (a *ApplicationController) GetByCustomer(customer string) (results []datamodels.ApplicationsFields) {
 	return results
 }*/

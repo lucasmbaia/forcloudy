@@ -22,6 +22,7 @@ type ResourceService interface {
 	Post(ctx iris.Context) (datamodels.Response, error)
 	Get(ctx iris.Context) (interface{}, error)
 	GetById(ctx iris.Context, id string) (interface{}, error)
+	DeleteById(ctx iris.Context, id string) error
 	/*Print()
 	  Set(params map[string]interface{}) error
 	  GetFields() interface{}
@@ -90,6 +91,20 @@ func (r *resourceService) GetById(ctx iris.Context, id string) (i interface{}, e
 	}
 
 	return model.Get(fields)
+}
+
+func (r *resourceService) DeleteById(ctx iris.Context, id string) error {
+	var (
+		model  = r.model(r.repository)
+		fields = r.fields()
+		err    error
+	)
+
+	if err = r.setParams(ctx.GetCurrentRoute().Path(), ctx.Params(), fields, id); err != nil {
+		return err
+	}
+
+	return model.Delete(fields)
 }
 
 func (r *resourceService) setParams(url string, rp *context.RequestParams, m interface{}, id string) error {

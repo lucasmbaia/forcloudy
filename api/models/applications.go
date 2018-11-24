@@ -129,6 +129,43 @@ func (a *Applications) Get(filters interface{}) (interface{}, error) {
 }
 
 func (a *Applications) Delete(conditions interface{}) error {
+	var (
+		application = conditions.(*datamodels.ApplicationsFields)
+		err         error
+		containers  interface{}
+	)
+
+	if err = a.Patch(
+		conditions,
+		&datamodels.ApplicationsFields{
+			Status: "DELETING",
+		},
+	); err != nil {
+		return err
+	}
+
+	if containers, err = NewContainers(a.repository).Get(
+		datamodels.ContainersFields{
+			Application: application.ID,
+		},
+	); err != nil {
+		return err
+	}
+
+	for _, container := range containers.([]datamodels.ContainersFields) {
+		if err = NewContainers(a.repository).Patch(
+			&datamodels.ContainersFields{
+				ID: container.ID,
+			},
+			&datamodels.ContainersFields{
+				Status: "IN_PROGRESS",
+				State:  "DELETING",
+			},
+		); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -143,6 +180,18 @@ func (a *Applications) Patch(fields, data interface{}) error {
 	)
 
 	return a.repository.Update(conditions, entity)
+}
+
+func (a *Applications) requestDelete(application *datamodels.ApplicationsFields, containers []datamodels.ContainersFields) {
+	var (
+		err error
+	)
+
+	for _, container := range containers {
+		if err = NewContainers(a.repository).Delete(container); err != nil {
+			break
+		}
+	}
 }
 
 func (a *Applications) requestDeploy(application *datamodels.ApplicationsFields, customer string) {

@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 	"github.com/lucasmbaia/forcloudy/api/config"
+	"github.com/lucasmbaia/forcloudy/api/utils"
 	"github.com/lucasmbaia/go-xmpp/docker"
 	"sync"
 )
@@ -192,7 +193,7 @@ func RemoveContainer(name string) error {
 				i.Containers = append(i.Containers[:idx], i.Containers[idx+1:]...)
 			}
 
-			minions[m] = Minions{Containers: i}
+			minions[m] = Minions{Containers: i.Containers}
 			break
 		}
 	}
