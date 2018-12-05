@@ -44,7 +44,7 @@ func LoadConfig() {
 
 	LoadLog(logging.INFO)
 	loadXMPP()
-	LoadETCD()
+	//LoadETCD()
 
 	if EnvConfig.Hostname, err = os.Hostname(); err != nil {
 		_log.Panic(err)

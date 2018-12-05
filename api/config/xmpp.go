@@ -13,7 +13,7 @@ func loadXMPP() {
     Mechanism: EnvXmpp.MechanismAuthenticate,
     User:      EnvXmpp.User,
     Password:  EnvXmpp.Password,
-  }); err != nil {
+  }, EnvXmpp.SystemShutdown); err != nil {
     panic(err)
   }
 }

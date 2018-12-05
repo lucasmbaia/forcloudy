@@ -22,9 +22,17 @@ type Client struct {
 	ctx     context.Context
 }
 
+type Response struct {
+  Key	  string
+  Values  string
+  Action  string
+}
+
 type Broker interface {
 	Set(key string, value interface{}) error
 	Get(key string, value interface{}) error
+	Exists(key string) bool
+	Watch(key string, values chan<- Response) error
 }
 
 func NewClient(ctx context.Context, config Config) (Client, error) {
@@ -96,4 +104,21 @@ func (c Client) Exists(key string) bool {
 	}
 
 	return true
+}
+
+func (c Client) Watch(key string, values chan<- Response) error {
+  var (
+    watch     _etcd.Watcher
+    err	      error
+    response  *_etcd.Response
+  )
+
+  watch = c.cli.Watcher(key, &_etcd.WatcherOptions{Recursive: true})
+  for {
+    if response, err = watch.Next(c.ctx); err != nil {
+      return err
+    }
+
+    values <- Response{Key: response.Node.Key, Values: response.Node.Value, Action: response.Action}
+  }
 }

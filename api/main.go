@@ -28,16 +28,18 @@ func main() {
 	}
 
 	config.EnvXmpp = config.Xmpp{
-		Host: "192.168.204.129",
+		Host: "172.16.95.179",
 		Port: "5222",
 		MechanismAuthenticate: "PLAIN",
 		User:     "zeus@localhost",
 		Password: "totvs@123",
 		Room:     "minions@conference.localhost",
+		MasterRoom:     "masters@conference.localhost",
+		SystemShutdown:	make(chan struct{}),
 	}
 
 	config.EnvConfig = config.Config{
-		EtcdEndpoints: []string{"http://192.168.204.128:2379"},
+		EtcdEndpoints: []string{"http://172.16.95.183:2379"},
 		EtcdTimeout:   10,
 		Hostname:      "minion-1",
 	}
@@ -57,7 +59,7 @@ func main() {
 
 	app.Run(
 		// Start the web server at localhost:8080
-		iris.Addr("localhost:8080"),
+		iris.Addr("localhost:8081"),
 		// disables updates:
 		iris.WithoutVersionChecker,
 		// skip err server closed when CTRL/CMD+C pressed:

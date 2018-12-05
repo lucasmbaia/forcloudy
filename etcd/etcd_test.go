@@ -8,7 +8,7 @@ import (
 
 func connect() (Client, error) {
 	return NewClient(context.Background(), Config{
-		Endpoints: []string{"http://192.168.204.128:2379"},
+		Endpoints: []string{"http://127.0.0.1:2379"},
 		Timeout:   5,
 	})
 }
@@ -17,7 +17,7 @@ func TestNewClient(t *testing.T) {
 	var err error
 
 	if _, err = NewClient(context.Background(), Config{
-		Endpoints: []string{"http://192.168.204.128:2379"},
+		Endpoints: []string{"http://127.0.0.1:2379"},
 		Timeout:   5,
 	}); err != nil {
 		t.Fatal(err)
@@ -71,4 +71,29 @@ func TestExists(t *testing.T) {
 	}
 
 	client.Exists("/haproxy/chaba-22")
+}
+
+func TestWatch(t *testing.T) {
+  var (
+      cli     Client
+      err     error
+      values  = make(chan Response)
+  )
+
+  if cli, err = connect(); err != nil {
+    t.Fatal(err)
+  }
+
+  go func() {
+    for {
+      select {
+      case v := <-values:
+	fmt.Println(v)
+      }
+    }
+  }()
+
+  if err = cli.Watch("/teste/", values); err != nil {
+    t.Fatal(err)
+  }
 }

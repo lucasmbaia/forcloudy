@@ -1,0 +1,18 @@
+[Unit]
+Description=Daemon responsible for create confs of HAProxy
+After=syslog.target network.target
+
+[Service]
+#Environment="PIDFILE=/run/hcfg.pid"
+EnvironmentFile=-/etc/hcfg.conf
+
+User=root
+Group=root
+KillMode=mixed
+Restart=always
+Type=simple
+
+ExecStart=/usr/local/sbin/hcfg --model=${MODEL} --addr=${ADDRESS}
+ExecReload=/usr/bin/kill -USR2 $MAINPID
+
+[Install]

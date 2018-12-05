@@ -1,328 +1,258 @@
-package haproxy
+package main
 
 import (
-	"fmt"
-	"github.com/lucasmbaia/forcloudy/api/config"
-)
-
-const (
-	KEY_ETCD = "/fc-haproxy/"
+  "context"
+  "encoding/json"
+  "flag"
+  "fmt"
+  "github.com/lucasmbaia/forcloudy/ha-proxy/template"
+  "github.com/lucasmbaia/forcloudy/etcd"
+  "log"
+  "net"
+  "os"
+  "os/signal"
+  "strings"
+  "syscall"
 )
 
 var (
-	PROTOCOL_HTTP = []string{"http", "https"}
-	PORTS_HTTP    = []string{"80", "443"}
-	KEY_HTTP      = map[string]string{"80": "app-http", "443": "app-https"}
+  timeout   = flag.Int("timeout", 5, "timeout of connect etcd")
+  key       = flag.String("key", "/fc-haproxy/", "Key of watch etcd")
+  hosts     = flag.String("host", "http://172.16.95.183:2379", "Host of etcd")
+  path      = flag.String("path", "/usr/local/etc/", "Path to conf ha-proxy")
+  model     = flag.String("model", "", "Model of template")
+  addr      = flag.String("addr", "", "Address of Network Interface")
+  lbproxy   = flag.String("lbproxy", "lb-proxy-1", "")
+  exclusive = flag.Bool("exclusive", false, "")
+  certs     = flag.String("certs", "", "Certs of ssl")
+
+  protocols = map[string]string{
+    "app-http":  "http",
+    "app-https": "https",
+  }
 )
 
-type Haproxy struct {
-	Customer         string
-	ApplicationName  string
-	ContainerName    string
-	PortsContainer   map[string][]string
-	Protocol         map[string]string
-	AddressContainer string
-	Dns              string
-	Minion           string
-}
-
-type infos struct {
-	Customer          string
-	ApplicationName   string
-	ContainerName     string
-	PortSource        string
-	PortsDestionation []string
-	AddressContainer  string
-	Dns               string
-	Protocol          string
-	Minion            string
-}
-
-type ConfHttpHttps struct {
-	Hosts []Hosts `json:"hosts,omitempty"`
-}
-
-type ConfTcpUdp struct {
-	Hosts []Hosts `json:"hosts,omitempty"`
-	Dns   string  `json:"dns,omitempty"`
+type InfosApplication struct {
+  Name      string  `json:"name,omitempty"`
+  Hosts     []Hosts `json:"hosts,omitempty"`
+  Dns       string  `json:"dns,omitempty"`
+  Interface string  `json:"-"`
+  SSL       string  `json:"-"`
 }
 
 type Hosts struct {
-	Containers []Containers `json:"containers,omitempty"`
-	Customer   string       `json:"customer,omitempty"`
-	Name       string       `json:"name,omitempty"`
-	Dns        string       `json:"dns,omitempty"`
-	Minion     string       `json:"minion,omitempty"`
-	PortSRC    string       `json:"portSRC,omitempty"`
-	Protocol   string       `json:"protocol,omitempty"`
+  Name       string       `json:"name,omitempty"`
+  Dns        string       `json:"dns,omitempty"`
+  Protocol   string       `json:"protocol,omitempty"`
+  PortSRC    string       `json:"portSRC,omitempty"`
+  Containers []Containers `json:"containers,omitempty"`
+  Address    []string     `json:"-"`
+  Whitelist  string       `json:"-"`
+  Minions    []string     `json:"-"`
 }
 
 type Containers struct {
-	Minion  string `json:"minion,omitempty"`
-	Name    string `json:"name,omitempty"`
-	Address string `json:"address,omitempty"`
+  Name    string `json:"-"`
+  Address string `json:"address,omitempty"`
+  Minion  string `json:"minion,omitempty"`
 }
 
-func GenerateConf(h Haproxy) error {
-	var (
-		exists bool
-		key    string
-		err    error
-	)
+func (ia InfosApplication) AddrToMinion(addr, minion string) string {
+  return fmt.Sprintf("%s:%s", minion, strings.Split(addr, ":")[1])
+}
 
-	for src, dst := range h.PortsContainer {
-		if _, exists = ExistsStringElement(src, PORTS_HTTP); exists {
-			var confHttpHttps ConfHttpHttps
+func Whitelist(address []string, minions []string) string {
+  var addrs string
 
-			if confHttpHttps, err = httpAndHttps(infos{
-				Customer:          h.Customer,
-				ApplicationName:   h.ApplicationName,
-				ContainerName:     h.ContainerName,
-				PortSource:        src,
-				PortsDestionation: dst,
-				AddressContainer:  h.AddressContainer,
-				Dns:               h.Dns,
-				Minion:            h.Minion,
-			}); err != nil {
-				return err
-			}
+  for _, v := range address {
+    addrs = fmt.Sprintf("%s%s ", addrs, strings.Split(v, ":")[0])
+  }
 
-			key = fmt.Sprintf("%s%s", KEY_ETCD, KEY_HTTP[src])
-			if err = config.EnvSingleton.EtcdConnection.Set(key, confHttpHttps); err != nil {
-				return err
-			}
-		} else {
-			var confTcpUdp ConfTcpUdp
+  addrs = fmt.Sprintf("%s%s %s", addrs, strings.Join(minions, " "), *lbproxy)
+  return addrs
+}
 
-			if confTcpUdp, err = tcpAndUdp(infos{
-				Customer:          h.Customer,
-				ApplicationName:   h.ApplicationName,
-				ContainerName:     h.ContainerName,
-				PortSource:        src,
-				PortsDestionation: dst,
-				Dns:               h.Dns,
-				Protocol:          h.Protocol[src],
-				Minion:            h.Minion,
-			}); err != nil {
-				return err
-			}
+func AddressToMinion(containers []Containers, exclusive bool) []string {
+  var addrs []string
 
-			key = fmt.Sprintf("%s%s/%s", KEY_ETCD, h.Customer, h.ApplicationName)
-			if err = config.EnvSingleton.EtcdConnection.Set(key, confTcpUdp); err != nil {
-				return err
-			}
-		}
+  if exclusive {
+    var hostname string
+
+    hostname, _ = os.Hostname()
+
+    for _, container := range containers {
+      if hostname == container.Minion {
+	addrs = append(addrs, fmt.Sprintf("%s:%s", container.Minion, strings.Split(container.Address, ":")[1]))
+      }
+    }
+  } else {
+    for _, container := range containers {
+      addrs = append(addrs, fmt.Sprintf("%s:%s", container.Minion, strings.Split(container.Address, ":")[1]))
+    }
+  }
+
+  return addrs
+}
+
+func AddressInterface(name string) string {
+  var (
+    ifaces []net.Interface
+    err    error
+    addr   string
+  )
+
+  if ifaces, err = net.Interfaces(); err != nil {
+    log.Fatalf("Error to list interfaces: %s", err.Error())
+  }
+
+  for _, iface := range ifaces {
+    if iface.Name == name {
+      var addrs []net.Addr
+
+      if addrs, err = iface.Addrs(); err != nil {
+	log.Fatalf("Error to get infos of interface: %s", err.Error())
+      }
+
+      for _, a := range addrs {
+	var ip net.IP
+
+	if ip, _, err = net.ParseCIDR(a.String()); err != nil {
+	  log.Fatalf("Error to parse CIDR: %s", err.Error())
 	}
 
-	return nil
+	addr = ip.String()
+	break
+      }
+    }
+  }
+
+  return addr
 }
 
-func RemoveContainer(h Haproxy) error {
-	var (
-		exists bool
-		key    string
-		err    error
-	)
+func pending(name string, values []byte, mt string) {
+  var (
+    ia  InfosApplication
+    err error
+  )
 
-	for src, _ := range h.PortsContainer {
-		if _, exists = ExistsStringElement(src, PORTS_HTTP); exists {
-			key = fmt.Sprintf("%s%s", KEY_ETCD, KEY_HTTP[src])
+  if err = json.Unmarshal([]byte(values), &ia); err != nil {
+    log.Printf("Error unmarshal: %s", err.Error())
+    return
+  }
 
-			if exists = config.EnvSingleton.EtcdConnection.Exists(key); exists {
-				var conf ConfHttpHttps
+  for key, _ := range ia.Hosts {
+    for _, container := range ia.Hosts[key].Containers {
+      ia.Hosts[key].Address = append(ia.Hosts[key].Address, container.Address)
+      ia.Hosts[key].Minions = append(ia.Hosts[key].Minions, container.Minion)
+    }
 
-				if err = config.EnvSingleton.EtcdConnection.Get(key, &conf); err != nil {
-					return err
-				}
+    ia.Hosts[key].Whitelist = Whitelist(ia.Hosts[key].Address, removeStringDuplicates(ia.Hosts[key].Minions))
+    ia.Hosts[key].Address = AddressToMinion(ia.Hosts[key].Containers, *exclusive)
+    ia.Hosts[key].Minions = removeStringDuplicates(ia.Hosts[key].Minions)
+  }
 
-				for idxHost, host := range conf.Hosts {
-					if h.ApplicationName == host.Name {
-						for idxContainer, container := range host.Containers {
-							if container.Name == h.ContainerName {
-								if len(host.Containers)-1 == idxContainer {
-									conf.Hosts[idxHost].Containers = conf.Hosts[idxHost].Containers[:idxContainer]
-								} else {
-									conf.Hosts[idxHost].Containers = append(conf.Hosts[idxHost].Containers[:idxContainer], conf.Hosts[idxHost].Containers[idxContainer+1:]...)
-								}
-							}
-						}
-					}
-				}
+  if *certs != "" {
+    ia.SSL = fmt.Sprintf("ssl %s", strings.Join(strings.Split(*certs, ","), "crt "))
+  }
 
-				if err = config.EnvSingleton.EtcdConnection.Set(key, conf); err != nil {
-					return err
-				}
-			}
-		} else {
-			key = fmt.Sprintf("%s%s/%s", KEY_ETCD, h.Customer, h.ApplicationName)
+  ia.Name = strings.Replace(name, *key, "", 1)
+  ia.Interface = *addr
 
-			if exists = config.EnvSingleton.EtcdConnection.Exists(key); exists {
-				var conf ConfHttpHttps
+  if err = template.ConfGenerate(*path, ia.Name, mt, ia); err != nil {
+    log.Printf("Error to generate conf: %s", err.Error())
+  }
 
-				if err = config.EnvSingleton.EtcdConnection.Get(key, &conf); err != nil {
-					return err
-				}
-
-				for idxHost, host := range conf.Hosts {
-					if host.PortSRC == src {
-						for idxContainer, container := range host.Containers {
-							if container.Name == h.ContainerName {
-								if len(host.Containers)-1 == idxContainer {
-									conf.Hosts[idxHost].Containers = conf.Hosts[idxHost].Containers[:idxContainer]
-								} else {
-									conf.Hosts[idxHost].Containers = append(conf.Hosts[idxHost].Containers[:idxContainer], conf.Hosts[idxHost].Containers[idxContainer+1:]...)
-								}
-							}
-						}
-					}
-				}
-
-				if err = config.EnvSingleton.EtcdConnection.Set(key, conf); err != nil {
-					return err
-				}
-			}
-		}
-	}
-
-	return nil
+  return
 }
 
-func tcpAndUdp(i infos) (ConfTcpUdp, error) {
-	var (
-		key      string
-		exists   bool
-		conf     ConfTcpUdp
-		contains bool
-		err      error
-	)
+func main() {
+  var (
+    ctx    context.Context
+    cancel context.CancelFunc
+    err    error
+    cli    etcd.Client
+    values = make(chan etcd.Response)
+    sigs   = make(chan os.Signal, 1)
+  )
 
-	key = fmt.Sprintf("%s%s/%s", KEY_ETCD, i.Customer, i.ApplicationName)
-	exists = config.EnvSingleton.EtcdConnection.Exists(key)
+  flag.Parse()
 
-	if exists {
-		if err = config.EnvSingleton.EtcdConnection.Get(key, &conf); err != nil {
-			return conf, err
-		}
+  if *model == "" {
+    log.Fatalf("Reporte the model of template")
+  }
 
-		for idx, host := range conf.Hosts {
-			if host.PortSRC == i.PortSource {
-				contains = true
-				for _, port := range i.PortsDestionation {
-					conf.Hosts[idx].Containers = append(conf.Hosts[idx].Containers, Containers{
-						Name:    i.ContainerName,
-						Address: fmt.Sprintf("%s:%s", i.AddressContainer, port),
-						Minion:  i.Minion,
-					})
-				}
-			}
-		}
+  if *addr == "" {
+    log.Fatalf("Reporte the address of network usage in haproxy")
+  }
 
-		if !contains {
-			var containers []Containers
-			for _, port := range i.PortsDestionation {
-				containers = append(containers, Containers{
-					Name:    i.ContainerName,
-					Address: fmt.Sprintf("%s:%s", i.AddressContainer, port),
-					Minion:  i.Minion,
-				})
-			}
+  ctx, cancel = context.WithCancel(context.Background())
+  signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
-			conf.Hosts = append(conf.Hosts, Hosts{
-				PortSRC:    i.PortSource,
-				Protocol:   i.Protocol,
-				Dns:        i.Dns,
-				Containers: containers,
-			})
-		}
+  go func() {
+    <-sigs
+    cancel()
+  }()
+
+  if cli, err = etcd.NewClient(ctx, etcd.Config{
+    Endpoints:	[]string{*hosts},
+    Timeout:	int32(*timeout),
+  }); err != nil {
+    log.Fatalf("Error to connect etcd: %s", err.Error())
+  }
+
+  go func() {
+    for {
+      var mt string
+
+      infos := <-values
+      key := strings.Replace(infos.Key, *key, "", 1)
+
+      fmt.Println(infos)
+
+      switch infos.Action {
+      case "set":
+	if name, ok := protocols[key]; ok {
+	  mt, err = template.ModelConf(fmt.Sprintf("%s-%s", *model, name))
 	} else {
-		conf = ConfTcpUdp{
-			Dns: i.Dns,
-			Hosts: []Hosts{
-				{PortSRC: i.PortSource, Protocol: i.Protocol},
-			},
-		}
-
-		for _, port := range i.PortsDestionation {
-			conf.Hosts[0].Containers = append(conf.Hosts[0].Containers, Containers{
-				Name:    i.ContainerName,
-				Address: fmt.Sprintf("%s:%s", i.AddressContainer, port),
-				Minion:  i.Minion,
-			})
-		}
+	  mt, err = template.ModelConf(fmt.Sprintf("%s-%s", *model, "tcpudp"))
 	}
 
-	return conf, nil
+	if err != nil {
+	  log.Printf("Error to get conf of template: %s", err.Error())
+	  break
+	}
+
+	pending(infos.Key, []byte(infos.Values), mt)
+      case "delete":
+	if err = template.RemoveConf(*path, key); err != nil {
+	  log.Printf("Error to delete file conf: %s", err.Error())
+	}
+      }
+    }
+  }()
+
+  go func() {
+    if err = cli.Watch(*key, values); err != nil {
+      log.Fatalf("Watch error: %s", err.Error())
+    }
+  }()
+
+  <-ctx.Done()
 }
 
-func httpAndHttps(h infos) (ConfHttpHttps, error) {
-	var (
-		key      string
-		exists   bool
-		conf     ConfHttpHttps
-		contains bool
-		err      error
-	)
+func removeStringDuplicates(elem []string) []string {
+  var (
+    encountered = map[string]bool{}
+    result      []string
+  )
 
-	key = fmt.Sprintf("%s%s", KEY_ETCD, KEY_HTTP[h.PortSource])
-	exists = config.EnvSingleton.EtcdConnection.Exists(key)
+  for v := range elem {
+    encountered[elem[v]] = true
+  }
 
-	if exists {
-		if err = config.EnvSingleton.EtcdConnection.Get(key, &conf); err != nil {
-			return conf, err
-		}
+  for key, _ := range encountered {
+    result = append(result, key)
+  }
 
-		for idx, host := range conf.Hosts {
-			if host.Name == h.ApplicationName && host.Customer == h.Customer {
-				contains = true
-				for _, port := range h.PortsDestionation {
-					conf.Hosts[idx].Containers = append(conf.Hosts[idx].Containers, Containers{
-						Minion:  h.Minion,
-						Name:    h.ContainerName,
-						Address: fmt.Sprintf("%s:%s", h.AddressContainer, port),
-					})
-				}
-			}
-		}
-
-		if !contains {
-			var containers []Containers
-			for _, port := range h.PortsDestionation {
-				containers = append(containers, Containers{
-					Minion:  h.Minion,
-					Name:    h.ContainerName,
-					Address: fmt.Sprintf("%s:%s", h.AddressContainer, port),
-				})
-			}
-
-			conf.Hosts = append(conf.Hosts, Hosts{
-				Customer:   h.Customer,
-				Name:       h.ApplicationName,
-				Dns:        h.Dns,
-				Minion:     h.Minion,
-				Containers: containers,
-			})
-		}
-	} else {
-		conf = ConfHttpHttps{
-			Hosts: []Hosts{
-				{Customer: h.Customer, Name: h.ApplicationName, Dns: h.Dns, Minion: h.Minion},
-			},
-		}
-
-		for _, port := range h.PortsDestionation {
-			conf.Hosts[0].Containers = append(conf.Hosts[0].Containers, Containers{Minion: h.Minion, Name: h.ContainerName, Address: fmt.Sprintf("%s:%s", h.AddressContainer, port)})
-		}
-	}
-
-	return conf, nil
-}
-
-func ExistsStringElement(f string, s []string) (int, bool) {
-	for idx, str := range s {
-		if str == f {
-			return idx, true
-		}
-	}
-
-	return 0, false
+  return result
 }

@@ -29,6 +29,8 @@ type Xmpp struct {
 	User                  string `json:"user,omitempty"`
 	Password              string `json:"password,omitempty"`
 	Room                  string `json:"room,omitempty"`
+	MasterRoom	      string  `json:"masterRoom,omitempty"`
+	SystemShutdown	      chan struct{}
 }
 
 type Database struct {

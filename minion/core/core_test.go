@@ -11,7 +11,7 @@ import (
 
 func loadConfig() {
 	config.EnvXmpp = config.Xmpp{
-		Host: "192.168.204.129",
+		Host: "172.16.95.179",
 		Port: "5222",
 		MechanismAuthenticate: xmpp.PLAIN,
 		User:       "minion-1@localhost",
@@ -21,7 +21,7 @@ func loadConfig() {
 	}
 
 	config.EnvConfig = config.Config{
-		EtcdEndpoints: []string{"http://192.168.204.128:2379"},
+		EtcdEndpoints: []string{"http://172.16.95.183:2379"},
 		EtcdTimeout:   10,
 	}
 
